@@ -1,13 +1,13 @@
-<!DOCTYPE html>
-<html lang="es">
+        <!DOCTYPE html>
+                                                          <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FatigaMonitor Pro — Monitorización del Entrenamiento</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&display=swap&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
   <style>
     :root{--bg:#F5F0E8;--bg2:#EDE7DC;--card:#FDFBF7;--card2:#F8F4ED;--border:#D6CCBA;--primary:#8B7340;--primary-d:#6B5730;--primary-l:#A6894E;--accent:#5B4F8A;--accent-alt:#7B6EAA;--text:#2C2418;--muted:#8A7E6B;--ok:#4A7A5A;--warn:#9E8035;--danger:#A04040;--side-w:250px;--serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;--mono:'DM Mono','Fira Code',monospace;--sans:'Inter',system-ui,sans-serif}
     *{margin:0;padding:0;box-sizing:border-box}
@@ -177,10 +177,12 @@
     .macro-bar{flex:1;height:20px;border-radius:2px;position:relative;overflow:hidden;background:var(--bg2)}
     .macro-fill{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:8px;font-family:var(--mono);font-size:10px;font-weight:400;color:#fff;transition:width .3s}
     .micro-tag{font-family:var(--mono);font-size:9px;font-weight:400;padding:2px 6px;border-radius:2px;white-space:nowrap;letter-spacing:.3px}
+    .micro-tag.gradual{background:rgba(45,122,92,.15);color:#2D7A5C}
     .micro-tag.corriente{background:rgba(91,79,138,.12);color:var(--accent)}
     .micro-tag.choque{background:rgba(160,64,64,.12);color:var(--danger)}
     .micro-tag.restablecimiento{background:rgba(74,122,90,.12);color:var(--ok)}
     .micro-tag.competicion{background:rgba(139,115,64,.12);color:var(--primary)}
+    .micro-tag.aproximacion{background:rgba(196,120,32,.15);color:#C47820}
     .micro-tag.control{background:rgba(91,79,138,.12);color:var(--accent-alt)}
     /* INFO BOX */
     .info-box{background:rgba(139,115,64,.04);border:1px solid rgba(139,115,64,.12);border-radius:3px;padding:14px 18px;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.6}
@@ -194,8 +196,9 @@
     /* CHECKIN CMJ */
     .cmj-big{font-family:var(--serif);font-size:48px;font-weight:300;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--primary);padding:16px;width:200px;display:block;margin:0 auto}.cmj-big:focus{outline:none;border-color:var(--primary)}
     /* UTILS */
-    .hidden{display:none!important}.flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-8{gap:8px}.gap-12{gap:12px}.gap-16{gap:16px}
-    .mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-16{margin-bottom:16px}.mb-24{margin-bottom:24px}.mt-16{margin-top:16px}.mt-24{margin-top:24px}
+    .hidden{display:none!important}.flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.gap-4{gap:4px}.gap-6{gap:6px}.gap-8{gap:8px}.gap-12{gap:12px}.gap-16{gap:16px}
+    .mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-16{margin-bottom:16px}.mb-24{margin-bottom:24px}.mb-32{margin-bottom:32px}.mt-8{margin-top:8px}.mt-16{margin-top:16px}.mt-24{margin-top:24px}
+    .floating-orb{background:radial-gradient(circle at 30% 30%,rgba(139,115,64,.25),rgba(91,79,138,.12));border-radius:50%;border:1px solid rgba(139,115,64,.2);flex-shrink:0}
     .text-center{text-align:center}
     /* PRINT */
     @media print{#app,#loginPage,#modalBox,#toasts{display:none!important}#printArea{display:block!important}}
@@ -204,9 +207,9 @@
     .macro-chart-wrap{overflow-x:auto;padding-bottom:12px}
     .macro-chart-canvas{width:100%;height:320px;min-width:900px}
     .macro-rows{min-width:900px;display:flex;flex-direction:column;gap:0}
-    .macro-meta-row{display:flex;gap:2px;border-bottom:1px solid rgba(214,204,186,.5);min-height:24px}
-    .macro-meta-row .lbl{width:28px;position:absolute;left:0;font-size:9px;color:var(--muted);font-weight:600;display:flex;align-items:center}
-    .macro-meta-cell{flex:1;min-width:14px;display:flex;align-items:center;justify-content:center;font-size:8px;padding:2px 0}
+    .macro-meta-row{display:flex;gap:2px;border-bottom:1px solid rgba(214,204,186,.5);min-height:28px}
+    .macro-meta-row .lbl{width:28px;position:absolute;left:0;font-size:10px;color:var(--muted);font-weight:600;display:flex;align-items:center}
+    .macro-meta-cell{flex:1;min-width:18px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:3px 1px}
     .comp-dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
     /* MESOCICLO GRID */
     .meso-tabs{display:flex;gap:0;flex-wrap:wrap;margin-bottom:20px;border-bottom:1px solid var(--border)}
@@ -260,10 +263,10 @@
     @keyframes rotateLogo{0%{transform:rotateY(0deg)}25%{transform:rotateY(180deg)}50%{transform:rotateY(360deg)}75%{transform:rotateY(540deg)}100%{transform:rotateY(720deg)}}
     .logo-3d:hover{animation-play-state:paused}
     /* MACRO INLINE INPUT */
-    .macro-inline-input{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--mono);font-size:7px;text-align:center;padding:1px 0;transition:border-color .2s;outline:none}
+    .macro-inline-input{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--mono);font-size:10px;text-align:center;padding:2px 0;transition:border-color .2s;outline:none}
     .macro-inline-input:hover{border-bottom-color:var(--border)}
     .macro-inline-input:focus{border-bottom-color:var(--primary);background:rgba(139,115,64,.04)}
-    .macro-inline-input::placeholder{color:var(--border);font-size:6px}
+    .macro-inline-input::placeholder{color:var(--border);font-size:9px}
     /* GOLD ACCENT LINE */
     .gold-line{width:40px;height:1px;background:var(--primary);opacity:.4}
     /* COPY PASTE UI */
@@ -352,7 +355,7 @@
 // ===== UID & DATE UTILS =====
 let _uid = Date.now();
 const uid = () => (++_uid).toString(36);
-const TODAY = '2026-03-21';
+const TODAY = new Date().toISOString().split('T')[0];
 const toDate = s => new Date(s + 'T12:00:00');
 const fmtDate = d => { const dt = typeof d === 'string' ? toDate(d) : d; return dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); };
 const fmtShort = d => { const dt = typeof d === 'string' ? toDate(d) : d; return dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short'}); };
@@ -366,7 +369,7 @@ let DB = { users:[], athletes:[], sessions:[], wellness:[], cmj:[], reports:[], 
 let CLIPBOARD = { type: null, data: null }; // For copy/paste sessions
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 3; // Bump this when data model changes
+const DB_VERSION = 4; // Bump this when data model changes
 function save(){ localStorage.setItem('fm_db', JSON.stringify(DB)); localStorage.setItem('fm_db_version', DB_VERSION); }
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
@@ -485,7 +488,7 @@ function seed(){
     // Build 12 evaluations with sample body data
     const baseW = a.weight;
     const evaluations = Array.from({length:12},(_,i)=>({
-      num:i+1, date: i<3 ? `2026-0${i+1}-15` : '',
+      num:i+1, date: i<3 ? daysAgo(60 - i*30) : '',
       peso: i<3 ? +(baseW + (Math.random()-0.3)*2*i).toFixed(1) : 0,
       grasa: i<3 ? +(14 - i*0.3 + (Math.random()-.5)).toFixed(1) : 0,
       masaMuscular: i<3 ? +(42 + i*0.4 + (Math.random()-.5)).toFixed(1) : 0,
@@ -498,16 +501,18 @@ function seed(){
       observations: i===0?'Evaluación inicial':'',
     }));
     // Build progress tracking
+    const planStart = daysAgo(60);
+    const planEnd = daysAgo(60 - 365);
     const progress = [
-      {date:'2026-01-26', month:'1°', pressBanca:100, sentadilla:150, pesoMuerto:180, cmj:a.cmjBase},
-      {date:'2026-03-15', month:'3°', pressBanca:105, sentadilla:155, pesoMuerto:185, cmj:a.cmjBase+2},
+      {date:daysAgo(60), month:'1°', pressBanca:100, sentadilla:150, pesoMuerto:180, cmj:a.cmjBase},
+      {date:daysAgo(12), month:'2°', pressBanca:105, sentadilla:155, pesoMuerto:185, cmj:a.cmjBase+2},
     ].map(p=>({...p, total:p.pressBanca+p.sentadilla+p.pesoMuerto+p.cmj}));
 
     return {
       id:uid(), athleteId:a.id, coachId:1,
       name:`Macrociclo ${a.name}`,
       title:`Macrociclo de ${a.sport} — Etapa de especialización`,
-      startDate:'2026-01-26', endDate:'2027-01-24',
+      startDate:planStart, endDate:planEnd,
       sport:a.sport,
       schedule:{lunes:'Fuerza',martes:'Potencia',miercoles:'Aeróbica',jueves:'Hipertrofia',viernes:'Técnica',sabado:'',domingo:''},
       observations:'',
@@ -524,15 +529,15 @@ function seed(){
   DB.reports.push({
     id:uid(), athleteId:3, coachId:1, type:'weekly',
     title:'Informe Semanal — Alerta de Sobreentrenamiento',
-    dateFrom:'2026-03-15', dateTo:'2026-03-21',
-    createdAt:'2026-03-20', viewed:false,
+    dateFrom:daysAgo(12), dateTo:daysAgo(6),
+    createdAt:daysAgo(7), viewed:false,
     content:'Se detectan signos de fatiga acumulada. El CMJ ha descendido un 20% respecto al baseline y el Wellness Score promedio de la semana es 2.0/5. Se recomienda descarga inmediata: reducir volumen 40-60%, mantener intensidad alta, y reevaluar en 5-7 días.'
   });
   DB.reports.push({
     id:uid(), athleteId:1, coachId:1, type:'weekly',
     title:'Informe Semanal — Microciclo de Choque',
-    dateFrom:'2026-03-15', dateTo:'2026-03-21',
-    createdAt:'2026-03-19', viewed:true,
+    dateFrom:daysAgo(12), dateTo:daysAgo(6),
+    createdAt:daysAgo(8), viewed:true,
     content:'Carlos ha completado un microciclo de choque con carga normalizada de 24/25. El ratio aguda/crónica se sitúa en zona amarilla (1.33). El Wellness muestra fatiga moderada (3.1/5). Se recomienda transición a microciclo de restablecimiento la próxima semana.'
   });
 
@@ -685,8 +690,20 @@ function getSessionTypeName(t){
 }
 
 function getMicroTypeName(t){
-  const map = {corriente:'Corriente',choque:'Choque',restablecimiento:'Descarga',competicion:'Competición',control:'Control'};
+  const map = {
+    gradual:'Gradual (G)', corriente:'Corriente (C)', choque:'Choque (CH)',
+    restablecimiento:'Restablecimiento (R)', competicion:'Competición (CP)',
+    aproximacion:'Aproximación (A)', control:'Control'
+  };
   return map[t]||t;
+}
+function getMicroTypeCode(t){
+  const map = {gradual:'G',corriente:'C',choque:'CH',restablecimiento:'R',competicion:'CP',aproximacion:'A',control:'CT'};
+  return map[t]||t.slice(0,3).toUpperCase();
+}
+function getMicroTypeLoad(t){
+  const map = {gradual:10,corriente:16,choque:21,restablecimiento:8,competicion:13,aproximacion:17,control:14};
+  return map[t]||14;
 }
 
 function getUnreadReports(aid){
@@ -1003,7 +1020,7 @@ function viewAthleteDetail(aid){
       </div>
       <div class="flex gap-8">
         <button class="btn btn-secondary" onclick="showSessionModal(${aid})"><i class="fas fa-plus"></i> Registrar Sesión</button>
-        <button class="btn btn-primary" onclick="generateFullReport(${aid})"><i class="fas fa-file-pdf"></i> Generar Informe</button>
+        <button class="btn btn-primary" onclick="generateAndSaveReport(${aid})"><i class="fas fa-file-alt"></i> Generar Informe</button>
       </div>
     </div>
     <div class="pg-body">
@@ -1208,7 +1225,7 @@ function viewMacrociclo(){
   const ath = getAthleteById(selAth);
   if(!plan||!ath) return `<div class="pg-body"><div class="empty"><i class="fas fa-calendar-times"></i><p>No hay plan</p></div></div>`;
 
-  const microColors = {corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',control:'#7B6EAA'};
+  const microColors = {gradual:'#2D7A5C',corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',aproximacion:'#C47820',control:'#7B6EAA'};
   const currentWeek = Math.max(1, Math.ceil(diffDays(TODAY, plan.startDate)/7));
   const cmjTrend = getCMJ30DayTrend(selAth);
   const st = getStatus(selAth);
@@ -1219,7 +1236,7 @@ function viewMacrociclo(){
   // Competition row
   const compRow = plan.weeks.map(w=>`<div class="macro-meta-cell">${w.competition?'<div class="comp-dot"></div>':''}</div>`).join('');
   // Micro type row
-  const microRow = plan.weeks.map(w=>`<div class="macro-meta-cell"><span class="micro-tag ${w.type}" style="font-size:7px;padding:1px 3px">${getMicroTypeName(w.type).slice(0,3)}</span></div>`).join('');
+  const microRow = plan.weeks.map(w=>`<div class="macro-meta-cell"><span class="micro-tag ${w.type}" style="font-size:10px;padding:2px 5px">${getMicroTypeCode(w.type)}</span></div>`).join('');
   // Mesociclo row — editable
   const mesoRow = plan.weeks.map((w,i)=>`<div class="macro-meta-cell"><input class="macro-inline-input" style="color:var(--primary)" value="${w.mesociclo?'M'+w.mesociclo:''}" placeholder="M" onchange="updateWeekMeta(${selAth},${i},'mesociclo',this.value.replace(/\\D/g,''))" title="Mesociclo"></div>`).join('');
   // Etapa row — editable
@@ -1234,8 +1251,9 @@ function viewMacrociclo(){
 
   return `
     <div class="pg-header">
-      <div><div class="pg-title">Macrociclo</div><div class="pg-sub">${plan.title||plan.name}</div></div>
+      <div><div class="pg-title">Macrociclo</div><div class="pg-sub">${plan.title||plan.name}${plan.macroType?` <span class="micro-tag" style="font-size:9px;padding:2px 7px;margin-left:6px;background:rgba(139,115,64,.12);color:var(--primary)">${{tradicional:'Tradicional',atr:'ATR','tradicional-doble':'Doble','bloques':'Bloques','larga-tradicional':'Larga Trad.','larga-atr':'Larga ATR'}[plan.macroType]||plan.macroType}</span>`:''}</div></div>
       <div class="flex gap-8">
+        <button class="btn btn-primary btn-sm" onclick="showAddWeeksModal(${selAth})"><i class="fas fa-plus"></i> Añadir Semanas</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMesoModal(${selAth})"><i class="fas fa-plus"></i> Mesociclo</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMacroModal(${selAth})"><i class="fas fa-sync-alt"></i> Nuevo Macrociclo</button>
       </div>
@@ -1279,10 +1297,10 @@ function viewMacrociclo(){
 
       <!-- Stats + CMJ 30-Day Average -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr) 1.4fr;gap:16px" class="mb-24">
-        <div class="stat-card c-pri"><div class="st-icon pri"><i class="fas fa-calendar"></i></div><div class="st-val">52</div><div class="st-label">Semanas Totales</div><div class="st-change up">Semana actual: ${currentWeek}</div></div>
-        <div class="stat-card c-ok"><div class="st-icon ok"><i class="fas fa-redo"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='restablecimiento').length}</div><div class="st-label">Sem. Descarga</div></div>
-        <div class="stat-card c-danger"><div class="st-icon danger"><i class="fas fa-bolt"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='choque').length}</div><div class="st-label">Sem. Choque</div></div>
-        <div class="stat-card c-warn"><div class="st-icon warn"><i class="fas fa-trophy"></i></div><div class="st-val">${plan.weeks.filter(w=>w.competition).length}</div><div class="st-label">Competiciones</div></div>
+        <div class="stat-card c-pri"><div class="st-icon pri"><i class="fas fa-calendar"></i></div><div class="st-val">${plan.weeks.length}</div><div class="st-label">Semanas Totales</div><div class="st-change up">Semana actual: ${currentWeek}</div></div>
+        <div class="stat-card c-ok"><div class="st-icon ok"><i class="fas fa-redo"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='restablecimiento').length}</div><div class="st-label">Sem. Restablec. (R)</div></div>
+        <div class="stat-card c-danger"><div class="st-icon danger"><i class="fas fa-bolt"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='choque').length}</div><div class="st-label">Sem. Choque (CH)</div></div>
+        <div class="stat-card c-warn"><div class="st-icon warn"><i class="fas fa-trophy"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='competicion').length}</div><div class="st-label">Sem. Comp. (CP)</div></div>
         <div class="cmj-avg-card">
           <div class="floating-orb" style="width:48px;height:48px;flex-shrink:0"></div>
           <div>
@@ -1299,7 +1317,7 @@ function viewMacrociclo(){
           <div class="card-title" style="margin:0">Distribución de Carga — Escala 0-25</div>
           <div style="font-size:11px;color:var(--muted)">Carga media: <strong style="color:var(--primary-l)">${avgLoad.toFixed(1)}</strong>/25 · Clic en barra para editar</div>
         </div>
-        <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Carga normalizada = (Carga real / Carga máx. planificada) × 25. Los colores representan el tipo de microciclo. Clic en una barra para editar sus datos.</div>
+        <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Escala de carga 0-25 por tipo de microciclo: <strong>G</strong> 8-12 · <strong>C</strong> 14-18 · <strong>CH</strong> +19 · <strong>A</strong> 15-20 · <strong>CP</strong> 15-11 · <strong>R</strong> 4-10. Clic en una barra para editar.</div>
         <div class="macro-chart-wrap">
           <div class="macro-chart-canvas"><canvas id="chartMacrociclo"></canvas></div>
           <div class="macro-rows">
@@ -1316,6 +1334,32 @@ function viewMacrociclo(){
         </div>
       </div>
 
+      <!-- Mesocycle summary table -->
+      ${plan.mesociclos&&plan.mesociclos.length?`
+      <div class="card mb-24">
+        <div class="card-title">Estructura de Mesociclos</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Nº</th>
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Mesociclo</th>
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Período</th>
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Etapa</th>
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Microciclos</th>
+              <th style="padding:8px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Objetivo</th>
+            </tr></thead>
+            <tbody>${plan.mesociclos.map(m=>`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="navigate('coach-mesociclo',{planAthlete:${selAth},mesoNum:${m.num}})">
+              <td style="padding:8px;font-family:var(--mono);color:var(--muted)">${m.num}</td>
+              <td style="padding:8px;font-weight:600">${m.name}</td>
+              <td style="padding:8px;color:var(--muted);font-size:11px">${m.periodo||'—'}</td>
+              <td style="padding:8px;color:var(--muted);font-size:11px">${m.etapa||'—'}</td>
+              <td style="padding:8px">${(m.microcycles||[]).map(mc=>`<span class="micro-tag ${mc.microType||'corriente'}" style="margin:1px">${getMicroTypeCode(mc.microType||'corriente')}</span>`).join('')}</td>
+              <td style="padding:8px;color:var(--muted);font-size:11px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.objective||'—'}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>` : ''}
+
       <!-- Observations -->
       <div class="card">
         <div class="card-title">Observaciones</div>
@@ -1329,7 +1373,7 @@ function setupMacroChart(){
   const plan = DB.plans.find(p=>p.athleteId===selAth);
   if(!plan) return;
 
-  const microColors = {corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',control:'#7B6EAA'};
+  const microColors = {gradual:'#2D7A5C',corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',aproximacion:'#C47820',control:'#7B6EAA'};
   const currentWeek = Math.max(1, Math.ceil(diffDays(TODAY, plan.startDate)/7));
 
   const labels = plan.weeks.map(w=>`S${w.weekNum}`);
@@ -1434,7 +1478,7 @@ function editWeekLoad(athId, weekIdx){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(!plan || !plan.weeks[weekIdx]) return;
   const w = plan.weeks[weekIdx];
-  const types = ['corriente','choque','restablecimiento','competicion','control'];
+  const types = ['gradual','corriente','choque','restablecimiento','competicion','aproximacion','control'];
   showModal(`
     <div class="modal-hdr"><div class="modal-title">Editar Semana ${w.weekNum}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
     <div class="grid-2">
@@ -1446,7 +1490,10 @@ function editWeekLoad(athId, weekIdx){
       <div class="form-group"><label>Periodo</label><input type="text" id="ewPeriodo" value="${w.periodo||''}" placeholder="Preparatorio, Competitivo..."></div>
     </div>
     <div class="form-group"><label><input type="checkbox" id="ewComp" ${w.competition?'checked':''}> Semana de Competición</label></div>
-    <button class="btn btn-primary btn-full mt-16" onclick="saveWeekEdit(${athId},${weekIdx})"><i class="fas fa-save"></i> Guardar Cambios</button>
+    <div class="flex gap-8 mt-16">
+      <button class="btn btn-primary" style="flex:1" onclick="saveWeekEdit(${athId},${weekIdx})"><i class="fas fa-save"></i> Guardar Cambios</button>
+      <button class="btn btn-secondary" style="color:var(--danger);border-color:var(--danger)" onclick="deleteWeek(${athId},${weekIdx})"><i class="fas fa-trash"></i> Eliminar</button>
+    </div>
   `, 460);
 }
 
@@ -1464,6 +1511,21 @@ function saveWeekEdit(athId, weekIdx){
   navigate('coach-macrociclo', S.params);
 }
 
+function deleteWeek(athId, weekIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan||!plan.weeks[weekIdx]) return;
+  if(!confirm(`¿Eliminar la semana ${plan.weeks[weekIdx].weekNum}?`)) return;
+  plan.weeks.splice(weekIdx, 1);
+  plan.weeks.forEach((w,i)=>w.weekNum=i+1);
+  const start = new Date(plan.startDate);
+  start.setDate(start.getDate() + plan.weeks.length*7);
+  plan.endDate = start.toISOString().slice(0,10);
+  save();
+  closeModal();
+  toast('Semana eliminada');
+  navigate('coach-macrociclo', S.params);
+}
+
 function savePlanField(athId, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(plan){ plan[field]=value; save(); }
@@ -1474,6 +1536,76 @@ function updateWeekMeta(athId, weekIdx, field, value){
   if(field==='mesociclo') plan.weeks[weekIdx].mesociclo = parseInt(value)||0;
   else plan.weeks[weekIdx][field] = value;
   save();
+}
+
+function showAddWeeksModal(athId){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  const types = ['gradual','corriente','choque','restablecimiento','competicion','aproximacion','control'];
+  const lastW = plan.weeks[plan.weeks.length-1]||{};
+  showModal(`
+    <div class="modal-hdr"><div class="modal-title">Añadir Semanas al Macrociclo</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <div class="form-group"><label>Número de semanas a añadir</label><input type="number" id="awCount" value="1" min="1" max="52" onchange="updateAddWeeksPreview(${athId})"></div>
+    <div id="awWeeksList"></div>
+    <button class="btn btn-primary btn-full mt-16" onclick="addWeeksToPlan(${athId})"><i class="fas fa-plus"></i> Añadir Semanas</button>
+  `, 560);
+  updateAddWeeksPreview(athId);
+}
+
+function updateAddWeeksPreview(athId){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  const count = Math.min(52, Math.max(1, parseInt(document.getElementById('awCount').value)||1));
+  const types = ['gradual','corriente','choque','restablecimiento','competicion','aproximacion','control'];
+  const lastW = plan.weeks[plan.weeks.length-1]||{};
+  const startNum = plan.weeks.length+1;
+  let html = '<div style="max-height:340px;overflow-y:auto;margin-top:12px">';
+  for(let i=0;i<count;i++){
+    const wn = startNum+i;
+    html += `<div style="padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:8px;background:var(--bg)">
+      <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--primary)">Semana ${wn}</div>
+      <div class="grid-2" style="gap:8px">
+        <div class="form-group" style="margin:0"><label style="font-size:10px">Tipo</label><select id="awType_${i}" style="font-size:11px;padding:4px 6px">${types.map(t=>`<option value="${t}" ${t===(lastW.type||'corriente')?'selected':''}>${getMicroTypeName(t)}</option>`).join('')}</select></div>
+        <div class="form-group" style="margin:0"><label style="font-size:10px">Carga (0-25)</label><input type="number" id="awLoad_${i}" value="${lastW.targetLoad||15}" min="0" max="25" style="font-size:11px;padding:4px 6px"></div>
+      </div>
+      <div class="grid-2" style="gap:8px;margin-top:6px">
+        <div class="form-group" style="margin:0"><label style="font-size:10px">Mesociclo</label><input type="number" id="awMeso_${i}" value="${lastW.mesociclo||1}" min="1" style="font-size:11px;padding:4px 6px"></div>
+        <div class="form-group" style="margin:0"><label style="font-size:10px">Etapa</label><input type="text" id="awEtapa_${i}" value="${lastW.etapa||''}" placeholder="General, Específica..." style="font-size:11px;padding:4px 6px"></div>
+      </div>
+      <div class="grid-2" style="gap:8px;margin-top:6px">
+        <div class="form-group" style="margin:0"><label style="font-size:10px">Periodo</label><input type="text" id="awPeriodo_${i}" value="${lastW.periodo||''}" placeholder="Preparatorio, Competitivo..." style="font-size:11px;padding:4px 6px"></div>
+        <div class="form-group" style="margin:0;display:flex;align-items:flex-end"><label style="font-size:10px"><input type="checkbox" id="awComp_${i}"> Competición</label></div>
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('awWeeksList').innerHTML = html;
+}
+
+function addWeeksToPlan(athId){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  const count = Math.min(52, Math.max(1, parseInt(document.getElementById('awCount').value)||1));
+  const startNum = plan.weeks.length+1;
+  for(let i=0;i<count;i++){
+    plan.weeks.push({
+      weekNum: startNum+i,
+      type: document.getElementById('awType_'+i).value,
+      targetLoad: Math.min(25, Math.max(0, parseInt(document.getElementById('awLoad_'+i).value)||15)),
+      mesociclo: parseInt(document.getElementById('awMeso_'+i).value)||1,
+      etapa: document.getElementById('awEtapa_'+i).value,
+      periodo: document.getElementById('awPeriodo_'+i).value,
+      competition: document.getElementById('awComp_'+i).checked
+    });
+  }
+  // Update end date
+  const start = new Date(plan.startDate);
+  start.setDate(start.getDate() + plan.weeks.length*7);
+  plan.endDate = start.toISOString().slice(0,10);
+  save();
+  closeModal();
+  toast(`${count} semana${count>1?'s':''} añadida${count>1?'s':''}`);
+  navigate('coach-macrociclo');
 }
 
 // ===== COACH: MESOCICLO =====
@@ -1515,7 +1647,7 @@ function viewMesociclo(){
     weeksHTML += `
       <div class="meso-week">
         <div class="meso-week-title" style="justify-content:space-between">
-          <span><i class="fas fa-calendar-week"></i> Microciclo ${wi+1} <span style="font-size:11px;color:var(--muted);font-weight:400">— Semana ${(selMeso-1)*meso.microcycles.length+wi+1} del macrociclo</span></span>
+          <span><i class="fas fa-calendar-week"></i> Microciclo ${wi+1} <span class="micro-tag ${mc.microType||'corriente'}" style="margin-left:6px;font-size:9px">${getMicroTypeCode(mc.microType||'corriente')} · Carga ${mc.targetLoad||getMicroTypeLoad(mc.microType||'corriente')}/25</span> <span style="font-size:11px;color:var(--muted);font-weight:400">— Sem. ${(selMeso-1)*meso.microcycles.length+wi+1} del macrociclo</span></span>
           <span style="display:flex;gap:4px">
             <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="showEditMicroModal(${selAth},${selMeso-1},${wi})"><i class="fas fa-edit"></i></button>
             <button class="copy-btn" onclick="copyMicrocycle(${selAth},${selMeso-1},${wi})"><i class="fas fa-copy"></i> Copiar</button>
@@ -1529,7 +1661,10 @@ function viewMesociclo(){
 
   return `
     <div class="pg-header">
-      <div><div class="pg-title">Mesociclo</div><div class="pg-sub">Planificación mensual de microciclos y sesiones</div></div>
+      <div>
+        <div class="pg-title">Mesociclo</div>
+        <div class="pg-sub">${meso.name}${meso.periodo?` · <span style="color:var(--muted)">${meso.periodo}</span>`:''}</div>
+      </div>
     </div>
     <div class="pg-body">
       ${athleteSelector('coach-mesociclo')}
@@ -1559,8 +1694,12 @@ function viewMesociclo(){
         </div>
       </div>
 
+      ${meso.objective||meso.etapa?`<div class="info-box mb-16" style="background:rgba(139,115,64,.07);border-color:rgba(139,115,64,.2)">
+        <i class="fas fa-bullseye" style="color:var(--primary)"></i>
+        ${meso.etapa?`<strong>${meso.etapa}</strong> — `:''}${meso.objective||''}
+      </div>`:''}
       ${clipboardHTML}
-      <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Mesociclo ${selMeso} (${meso.name}) — ${meso.microcycles.length} microciclos × 7 sesiones. Edita directamente. Usa <i class="fas fa-copy"></i>/<i class="fas fa-paste"></i> para copiar y pegar. Flechas para reordenar meses.</div>
+      <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Mesociclo ${selMeso} (${meso.name}) — ${meso.microcycles.length} microciclos × 7 sesiones. Secuencia: ${(meso.microcycles||[]).map(mc=>`<span class="micro-tag ${mc.microType||'corriente'}" style="font-size:8px;margin:0 1px">${getMicroTypeCode(mc.microType||'corriente')}(${mc.targetLoad||getMicroTypeLoad(mc.microType||'corriente')})</span>`).join(' → ')}. Edita directamente.</div>
       ${weeksHTML}
       <button class="btn btn-secondary mt-16" onclick="addMicrocicloToMeso(${selAth},${selMeso-1})"><i class="fas fa-plus"></i> Añadir Microciclo a este Mesociclo</button>
     </div>`;
@@ -2007,18 +2146,20 @@ function viewCoachReports(){
 
   return `
     <div class="pg-header">
-      <div><div class="pg-title">Informes</div><div class="pg-sub">Genera y gestiona informes para tus atletas</div></div>
+      <div><div class="pg-title">Informes</div><div class="pg-sub">Genera y gestiona informes de tus atletas</div></div>
     </div>
     <div class="pg-body">
       <div class="grid-3 mb-24">
         ${athletes.map(a=>{
           const st = getStatus(a.id);
-          return `<div class="card" style="cursor:pointer" onclick="generateFullReport(${a.id})">
+          const athReports = reports.filter(r=>r.athleteId===a.id).length;
+          return `<div class="card">
             <div class="flex items-center gap-12 mb-12">
               <div class="ath-avatar" style="width:40px;height:40px;font-size:14px">${a.photo}</div>
               <div><div style="font-weight:600">${a.name}</div><span class="sem ${st}"><span class="dot"></span>${statusLabel(st)}</span></div>
             </div>
-            <button class="btn btn-primary btn-sm btn-full"><i class="fas fa-file-pdf"></i> Generar Informe</button>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${athReports} informe${athReports!==1?'s':''} generado${athReports!==1?'s':''}</div>
+            <button class="btn btn-primary btn-sm btn-full" onclick="generateAndSaveReport(${a.id})"><i class="fas fa-file-alt"></i> Generar Informe</button>
           </div>`;
         }).join('')}
       </div>
@@ -2026,7 +2167,7 @@ function viewCoachReports(){
       <div class="card">
         <div class="card-title">Informes Generados</div>
         ${reports.length?`<div class="tbl-wrap"><table>
-          <thead><tr><th>Fecha</th><th>Atleta</th><th>Título</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Atleta</th><th>Título</th><th>Estado</th><th></th></tr></thead>
           <tbody>
           ${reports.map(r=>{
             const a = getAthleteById(r.athleteId);
@@ -2034,9 +2175,12 @@ function viewCoachReports(){
               <td>${fmtShort(r.createdAt)}</td>
               <td>${a?a.name:'-'}</td>
               <td style="font-weight:500">${r.title}</td>
-              <td><span class="badge badge-pri">${r.type==='weekly'?'Semanal':'Mensual'}</span></td>
               <td>${r.viewed?'<span class="badge badge-ok">Leído</span>':'<span class="badge badge-warn">No leído</span>'}</td>
-              <td><button class="btn btn-ghost btn-sm" onclick="viewReportDetail('${r.id}')"><i class="fas fa-eye"></i></button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteReport('${r.id}')"><i class="fas fa-trash"></i></button></td>
+              <td>
+                <button class="btn btn-ghost btn-sm" onclick="viewReportDetail('${r.id}')"><i class="fas fa-eye"></i></button>
+                <button class="btn btn-ghost btn-sm" onclick="printSavedReport('${r.id}')"><i class="fas fa-file-pdf"></i></button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteReport('${r.id}')"><i class="fas fa-trash"></i></button>
+              </td>
             </tr>`;
           }).join('')}
           </tbody>
@@ -2533,7 +2677,7 @@ function viewAthPlan(){
   const currentWeek = Math.max(1, Math.ceil(diffDays(TODAY, plan.startDate)/7));
   const cw = plan.weeks.find(w=>w.weekNum===currentWeek) || plan.weeks[0];
   const progress = Math.round((currentWeek/52)*100);
-  const microColors = {corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',control:'#7B6EAA'};
+  const microColors = {gradual:'#2D7A5C',corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',aproximacion:'#C47820',control:'#7B6EAA'};
   const nextWeeks = plan.weeks.filter(w=>w.weekNum>=currentWeek && w.weekNum<currentWeek+4);
 
   return `
@@ -2900,10 +3044,11 @@ function viewAthReports(){
           <div class="flex justify-between items-center mb-12">
             <div>
               <div style="font-weight:600;font-size:15px">${r.title}</div>
-              <div style="font-size:12px;color:var(--muted)">${fmtDate(r.createdAt)} · ${r.type==='weekly'?'Semanal':'Mensual'} · ${fmtShort(r.dateFrom)} — ${fmtShort(r.dateTo)}</div>
+              <div style="font-size:12px;color:var(--muted)">${fmtDate(r.createdAt)}</div>
             </div>
             <div class="flex gap-8 items-center">
               ${!r.viewed?'<span class="badge badge-warn">Nuevo</span>':'<span class="badge badge-ok">Leído</span>'}
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();printSavedReport('${r.id}')"><i class="fas fa-file-pdf"></i></button>
               <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteReport('${r.id}')"><i class="fas fa-trash"></i></button>
             </div>
           </div>
@@ -2918,90 +3063,270 @@ function showCreateMacroModal(athId){
   const ath = getAthleteById(athId);
   if(!ath) return;
   showModal(`
-    <div class="modal-hdr"><div class="modal-title">Crear Macrociclo — ${ath.name}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <div class="modal-hdr"><div class="modal-title">Nuevo Macrociclo — ${ath.name}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
     <div class="grid-2">
-      <div class="form-group"><label>Nombre del plan</label><input type="text" id="macroName" value="Macrociclo de ${ath.sport}" placeholder="Nombre"></div>
+      <div class="form-group"><label>Nombre del plan</label><input type="text" id="macroName" value="Macrociclo ${ath.sport}" placeholder="Nombre del plan"></div>
       <div class="form-group"><label>Deporte</label><input type="text" id="macroSport" value="${ath.sport}" placeholder="Deporte"></div>
     </div>
     <div class="grid-2">
-      <div class="form-group"><label>Fecha inicio</label><input type="date" id="macroStart" value="${TODAY}"></div>
-      <div class="form-group"><label>Duración (semanas)</label><input type="number" id="macroDuration" value="52" min="4" max="104"></div>
+      <div class="form-group"><label>Fecha de inicio</label><input type="date" id="macroStart" value="${TODAY}"></div>
+      <div class="form-group"><label>Fase del deportista</label>
+        <select id="macroFase">
+          <option value="3">3ª — Especialización (14-18 años)</option>
+          <option value="4" selected>4ª — Perfeccionamiento (+18 años)</option>
+          <option value="5">5ª — Rendimiento máximo (élite)</option>
+        </select>
+      </div>
     </div>
-    <div class="form-group"><label>Plantilla de periodización</label>
-      <select id="macroTemplate">
-        <option value="linear">Lineal (4 corriente + 1 descarga)</option>
-        <option value="block">Bloques (3 acumulación + 2 transmutación + 1 realización)</option>
-        <option value="undulating">Ondulante (alternando tipos)</option>
-        <option value="custom">Personalizado (todo corriente)</option>
+    <div class="form-group"><label>Tipo de periodización</label>
+      <select id="macroType" onchange="updateMacroModalOptions(${athId})">
+        <option value="tradicional">Macrociclo Tradicional Simple</option>
+        <option value="tradicional-doble">Macrociclo Tradicional Doble</option>
+        <option value="atr">Macrociclo ATR (Acumulación-Transformación-Realización)</option>
+        <option value="bloques">Macrociclo por Bloques (potencia, fases 4-5)</option>
+        <option value="larga-tradicional">Larga Temporada — Tradicional (deportes colectivos)</option>
+        <option value="larga-atr">Larga Temporada — ATR (deportes colectivos)</option>
       </select>
     </div>
-    <div class="grid-3">
-      <div class="form-group"><label>Etapa 1 (sem 1-13)</label><input type="text" id="macroEtapa1" value="General" placeholder="General"></div>
-      <div class="form-group"><label>Etapa 2 (sem 14-26)</label><input type="text" id="macroEtapa2" value="Específica" placeholder="Específica"></div>
-      <div class="form-group"><label>Etapa 3 (sem 27+)</label><input type="text" id="macroEtapa3" value="Competitiva" placeholder="Competitiva"></div>
-    </div>
-    <div class="form-group"><label>Objetivo principal</label><input type="text" id="macroObj" value="Mejorar rendimiento en ${ath.sport}" placeholder="Objetivo"></div>
+    <div id="macroSubOptions"></div>
+    <div class="form-group"><label>Objetivo principal</label><input type="text" id="macroObj" value="Mejorar rendimiento en ${ath.sport}" placeholder="Objetivo del plan"></div>
+    <div class="info-box mt-8" style="font-size:11px"><i class="fas fa-info-circle"></i><span id="macroInfoText">Selecciona el tipo de periodización para ver la descripción y estructura generada.</span></div>
     <button class="btn btn-primary btn-full mt-16" onclick="createMacrociclo(${athId})"><i class="fas fa-calendar-plus"></i> Crear Macrociclo</button>
-  `);
+  `, 560);
+  setTimeout(()=>updateMacroModalOptions(athId), 60);
+}
+function updateMacroModalOptions(athId){
+  const typeEl = document.getElementById('macroType');
+  const sub = document.getElementById('macroSubOptions');
+  const info = document.getElementById('macroInfoText');
+  if(!typeEl||!sub||!info) return;
+  const type = typeEl.value;
+  const infoMap = {
+    'tradicional':'Periodización clásica: Preparatorio (Etapa General + Etapa Específica) → Periodo Competiciones → Periodo Transitorio. Para deportes de resistencia y técnicos. Mesociclos de 4 semanas (3 en potencia/principiante).',
+    'tradicional-doble':'Dos macrociclos encadenados sin Periodo Transitorio intermedio. El 2º macrociclo NO tiene mesociclo Introductorio. Útil cuando hay dos picos competitivos separados.',
+    'atr':'Acumulación (Fuerza máx + Pot. aeróbica) → Transformación → Realización. Para deportistas de resistencia en fases 4-5. REGLA: nunca más de 5 semanas sin restablecer la Acumulación.',
+    'bloques':'Bloque Fuerza + Bloque Técnica. Solo para deportistas de POTENCIA en fases 4-5 (élite). Por cada MS Fuerza debe haber un MS Técnica equivalente. RF (choque) nunca coincide con competición.',
+    'larga-tradicional':'Para deportes colectivos: Introductorio → BPG → BPE → Preparatorio (sistemas de juego) → Competiciones (táctica + rapidez).',
+    'larga-atr':'ATR para larga temporada: Acumulación incluye Táctica individual y Sistemas de juego. Transformación incluye sistemas + umbral/potencia + fuerza repetitiva.'
+  };
+  info.textContent = infoMap[type]||'';
+  if(type==='atr'){
+    sub.innerHTML = `<div class="grid-2">
+      <div class="form-group"><label>Modalidad de resistencia</label><select id="atrSubtype">
+        <option value="rcd">R.C.D — Corta duración (nadador/ciclista)</option>
+        <option value="rld">R.L.D — Larga duración (corredor/a)</option>
+      </select></div>
+      <div class="form-group"><label>Nº de bloques ATR en temporada</label><select id="atrCount">
+        <option value="2">2 bloques ATR</option><option value="3" selected>3 bloques ATR</option>
+      </select></div></div>`;
+  } else if(type==='bloques'){
+    sub.innerHTML = `<div class="grid-2">
+      <div class="form-group"><label>Tipo de deporte de potencia</label><select id="bloquesSubtype">
+        <option value="tecnico">Gimnasia / Lanzadores (peso, jabalina)</option>
+        <option value="velocista">Velocistas (deportes con desplazamiento)</option>
+      </select></div>
+      <div class="form-group"><label>Mesociclos por bloque</label><select id="bloquesPerBlock">
+        <option value="1">1 MS por bloque (3 sem/bloque)</option>
+        <option value="2" selected>2 MS por bloque (6 sem/bloque)</option>
+      </select></div></div>`;
+  } else if(type==='tradicional'||type==='larga-tradicional'){
+    sub.innerHTML = `<div class="grid-2">
+      <div class="form-group"><label>Tamaño de mesociclos</label><select id="tradSubtype">
+        <option value="resistencia">4 semanas (resistencia / técnicos)</option>
+        <option value="potencia">3 semanas (potencia / principiante)</option>
+      </select></div>
+      <div class="form-group"><label>Nº de BPG en Etapa General</label><select id="numBPG">
+        <option value="2" selected>2 BPG</option><option value="3">3 BPG</option>
+      </select></div></div>`;
+  } else { sub.innerHTML = ''; }
 }
 function createMacrociclo(athId){
   const name = document.getElementById('macroName').value.trim();
   const sport = document.getElementById('macroSport').value.trim();
   const start = document.getElementById('macroStart').value;
-  const duration = parseInt(document.getElementById('macroDuration').value)||52;
-  const template = document.getElementById('macroTemplate').value;
-  const etapas = [document.getElementById('macroEtapa1').value, document.getElementById('macroEtapa2').value, document.getElementById('macroEtapa3').value];
+  const macroType = document.getElementById('macroType').value;
   const obj = document.getElementById('macroObj').value.trim();
   if(!name||!start){toast('Completa nombre y fecha','error');return;}
+  const getEl = id=>{const e=document.getElementById(id);return e?e.value:null;};
+  const is3w = macroType==='bloques'||(macroType.includes('tradicional')&&getEl('tradSubtype')==='potencia');
 
-  const endDate = new Date(new Date(start).getTime() + duration*7*24*60*60*1000).toISOString().slice(0,10);
-  const weeks = Array.from({length:duration},(_,i)=>{
-    let type='corriente', load=15;
-    if(template==='linear'){ type=i%5===4?'restablecimiento':'corriente'; load=i%5===4?10:[13,15,17,19][i%5]; }
-    else if(template==='block'){const b=i%6; type=b<3?'corriente':b<5?'choque':'restablecimiento'; load=b<3?[14,16,18][b]:b<5?[20,22][b-3]:10;}
-    else if(template==='undulating'){type=['corriente','choque','corriente','restablecimiento'][i%4]; load=[15,20,17,10][i%4];}
-    const third=Math.floor(duration/3);
-    return {weekNum:i+1, type, targetLoad:load, mesociclo:Math.ceil((i+1)/4), etapa:i<third?etapas[0]:i<third*2?etapas[1]:etapas[2], periodo:i<duration*0.5?'Preparatorio':i<duration*0.8?'Competitivo':'Transitorio', competition:false, notes:''};
-  });
-  // Remove old plan if exists
-  DB.plans = DB.plans.filter(p=>p.athleteId!==athId);
-  const numMesos = Math.ceil(duration/4);
-  const monthNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const sesTypes=['Hipertrofia','Fuerza Máx.','Potencia','Aeróbica','Técnica'];
-  const mesociclos = Array.from({length:numMesos},(_,mi)=>({
-    num:mi+1, name:monthNames[mi%12],
-    microcycles: Array.from({length:4},(_,wi)=>({
-      weekNum:wi+1,
-      sessions: Array.from({length:7},(_,di)=>({
-        num:di+1, day:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][di],
-        type: di<5 ? sesTypes[di%5] : 'Descanso',
-        volume: di<5 ? 80 : 0,
-        intensity: di<5 ? 70 : 0
-      })),
-      observations:''
-    }))
-  }));
-  const evaluations = Array.from({length:numMesos},(_,i)=>({
-    num:i+1, date:'', peso:0, grasa:0, masaMuscular:0, biceps:0, pecho:0, cintura:0, cadera:0, muslo:0, gemelo:0, observations:''
-  }));
-  // Pre-generate detailedSessions for all meso-micro combinations
-  const detailedSessions = {};
-  mesociclos.forEach(m => {
-    m.microcycles.forEach((mc,wi) => {
-      detailedSessions[`${m.num}-${wi+1}`] = Array.from({length:7},(_,si)=>({
-        num:si+1,
-        exercises: Array.from({length:7},()=>({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),
-        observations:'', volume:''
-      }));
+  // Each meso definition: {name, type, objective, periodo, etapa, micro:[[microType,load,isComp],...]}
+  let mesoDefs = [];
+
+  if(macroType==='tradicional'||macroType==='larga-tradicional'){
+    const numBPG = parseInt(getEl('numBPG'))||2;
+    const isLarga = macroType==='larga-tradicional';
+    const w4 = !is3w;
+    mesoDefs.push({name:'Introductorio',type:'introductorio',objective:'Acondicionamiento general / Técnica',periodo:'Preparatorio',etapa:'Etapa Preparación General',
+      micro: w4?[['gradual',10],['corriente',16],['corriente',16],['restablecimiento',8]]:[['gradual',10],['corriente',16],['restablecimiento',8]]});
+    for(let i=0;i<numBPG;i++){
+      mesoDefs.push({name:`BPG ${i+1}`,type:'bpg',objective:'Fuerza general / Resistencia general',periodo:'Preparatorio',etapa:'Etapa Preparación General',
+        micro: w4?[['corriente',14],['choque',21],['corriente',16],['restablecimiento',8]]:[['corriente',14],['choque',21],['restablecimiento',8]]});
+    }
+    for(let i=0;i<2;i++){
+      mesoDefs.push({name:`BPE ${i+1}`,type:'bpe',objective:isLarga?'Capacidad aeróbica / Fuerza resistencia':'Fuerza y resistencia específicas',periodo:'Preparatorio',etapa:'Etapa Preparación Específica',
+        micro: w4?[['corriente',14],['choque',21],['choque',21],['restablecimiento',8]]:[['choque',21],['choque',21],['restablecimiento',8]]});
+    }
+    if(isLarga){
+      mesoDefs.push({name:'Preparatorio',type:'preparatorio',objective:'Sistemas de juego',periodo:'Competiciones',etapa:'Estabilización de la Forma',
+        micro: w4?[['choque',21],['corriente',16],['aproximacion',17],['restablecimiento',8]]:[['choque',21],['aproximacion',17],['restablecimiento',8]]});
+      mesoDefs.push({name:'Competición 1',type:'competicion',objective:'Táctica individual + situaciones reales de juego / Capacidad aceleración + rapidez ejecución',periodo:'Competiciones',etapa:'Competiciones Fundamentales',
+        micro:[['aproximacion',17],['competicion',15,1],['competicion',13,1],['restablecimiento',8]]});
+      mesoDefs.push({name:'Competición 2',type:'competicion',objective:'Táctica individual + situaciones reales de juego / Capacidad aceleración + rapidez ejecución',periodo:'Competiciones',etapa:'Competiciones Fundamentales',
+        micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1],['restablecimiento',8]]});
+    } else {
+      mesoDefs.push({name:'Preparatorio',type:'preparatorio',objective:'Ritmo competición / Rapidez ejecución',periodo:'Competiciones',etapa:'Estabilización de la Forma',
+        micro: w4?[['choque',21],['corriente',16],['aproximacion',17],['restablecimiento',8]]:[['choque',21],['aproximacion',17],['restablecimiento',8]]});
+      mesoDefs.push({name:'Competición 1',type:'competicion',objective:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones',etapa:'Competiciones Fundamentales',
+        micro:[['aproximacion',17],['competicion',15,1],['competicion',13,1],['restablecimiento',8]]});
+      mesoDefs.push({name:'Intermedio',type:'intermedio',objective:'½ objetivos BPG (F. y Res. general) + ½ objetivos BPE (F. y Res. específica)',periodo:'Competiciones',etapa:'Competiciones Fundamentales',
+        micro:[['restablecimiento',8],['choque',21],['choque',21],['choque',21],['choque',21],['aproximacion',17]]});
+      mesoDefs.push({name:'Competición 2',type:'competicion',objective:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones',etapa:'Competiciones Fundamentales',
+        micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1],['restablecimiento',8]]});
+    }
+    mesoDefs.push({name:'Disminución',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Disminución del Entrenamiento',micro:[['restablecimiento',10],['restablecimiento',8]]});
+    mesoDefs.push({name:'Regeneración',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Regeneración',micro:[['restablecimiento',6],['restablecimiento',4]]});
+  }
+  else if(macroType==='tradicional-doble'){
+    // Macrociclo 1
+    mesoDefs.push({name:'Introductorio',type:'introductorio',objective:'Acondicionamiento general / Técnica',periodo:'Preparatorio 1',etapa:'Etapa Preparación General',micro:[['gradual',10],['corriente',16],['corriente',16],['restablecimiento',8]]});
+    mesoDefs.push({name:'BPG 1',type:'bpg',objective:'Fuerza general / Resistencia general',periodo:'Preparatorio 1',etapa:'Etapa Preparación General',micro:[['corriente',14],['choque',21],['corriente',16],['restablecimiento',8]]});
+    mesoDefs.push({name:'BPE 1',type:'bpe',objective:'Capacidad aeróbica / Fuerza resistencia',periodo:'Preparatorio 1',etapa:'Etapa Preparación Específica',micro:[['corriente',14],['choque',21],['choque',21],['restablecimiento',8]]});
+    mesoDefs.push({name:'Preparatorio 1',type:'preparatorio',objective:'Ritmo competición / Rapidez ejecución',periodo:'Competiciones 1',etapa:'Estabilización de la Forma',micro:[['choque',21],['corriente',16],['aproximacion',17],['restablecimiento',8]]});
+    mesoDefs.push({name:'Comp. Fund. 1',type:'competicion',objective:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones 1',etapa:'Competiciones Fundamentales',micro:[['aproximacion',17],['competicion',15,1],['competicion',13,1],['restablecimiento',8]]});
+    // Macrociclo 2 (sin introductorio)
+    mesoDefs.push({name:'BPG 2',type:'bpg',objective:'Fuerza general / Resistencia general',periodo:'Preparatorio 2',etapa:'Etapa Preparación General',micro:[['corriente',14],['choque',21],['corriente',16],['restablecimiento',8]]});
+    mesoDefs.push({name:'BPE 2',type:'bpe',objective:'Capacidad aeróbica / Fuerza resistencia',periodo:'Preparatorio 2',etapa:'Etapa Preparación Específica',micro:[['corriente',14],['choque',21],['choque',21],['restablecimiento',8]]});
+    mesoDefs.push({name:'Preparatorio 2',type:'preparatorio',objective:'Ritmo competición / Rapidez ejecución',periodo:'Competiciones 2',etapa:'Estabilización de la Forma',micro:[['choque',21],['corriente',16],['aproximacion',17],['restablecimiento',8]]});
+    mesoDefs.push({name:'Comp. Fund. 2',type:'competicion',objective:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones 2',etapa:'Competiciones Fundamentales',micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1],['restablecimiento',8]]});
+    mesoDefs.push({name:'Disminución',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Disminución del Entrenamiento',micro:[['restablecimiento',10],['restablecimiento',8]]});
+    mesoDefs.push({name:'Regeneración',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Regeneración',micro:[['restablecimiento',6],['restablecimiento',4]]});
+  }
+  else if(macroType==='atr'){
+    const sub = getEl('atrSubtype')||'rcd';
+    const cnt = parseInt(getEl('atrCount'))||3;
+    const transObj = sub==='rcd'?'Potencia aeróbica / Fuerza repetitiva':'Umbral anaeróbico / Fuerza repetitiva';
+    // 1er bloque: Acumulación más larga (hasta 6 sem), empieza con G
+    mesoDefs.push({name:'Acumulación 1',type:'acumulacion',objective:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR 1',etapa:'Acumulación',micro:[['gradual',10],['corriente',16],['choque',21],['choque',21],['choque',21],['restablecimiento',8]]});
+    mesoDefs.push({name:'Transformación 1',type:'transformacion',objective:transObj,periodo:'Macrociclo ATR 1',etapa:'Transformación',micro:[['corriente',16],['choque',21],['choque',21],['aproximacion',17]]});
+    mesoDefs.push({name:'Realización 1',type:'realizacion',objective:'Ritmo competición / Técnica competición',periodo:'Macrociclo ATR 1',etapa:'Realización',micro:[['aproximacion',17],['competicion',13,1],['competicion',11,1]]});
+    mesoDefs.push({name:'Descarga 1',type:'restablecimiento',objective:'Regeneración',periodo:'Macrociclo ATR 1',etapa:'Restablecimiento',micro:[['restablecimiento',8]]});
+    if(cnt>=2){
+      mesoDefs.push({name:'Acumulación 2',type:'acumulacion',objective:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR 2',etapa:'Acumulación',micro:[['corriente',16],['choque',21],['choque',21],['corriente',16],['restablecimiento',8]]});
+      mesoDefs.push({name:'Transformación 2',type:'transformacion',objective:transObj,periodo:'Macrociclo ATR 2',etapa:'Transformación',micro:[['corriente',16],['choque',21],['choque',21],['aproximacion',17]]});
+      mesoDefs.push({name:'Realización 2',type:'realizacion',objective:'Ritmo competición / Técnica competición',periodo:'Macrociclo ATR 2',etapa:'Realización',micro:[['aproximacion',17],['competicion',13,1],['competicion',11,1]]});
+      mesoDefs.push({name:'Descarga 2',type:'restablecimiento',objective:'Regeneración',periodo:'Macrociclo ATR 2',etapa:'Restablecimiento',micro:[['restablecimiento',8]]});
+    }
+    if(cnt>=3){
+      // 3er bloque: Acumulación más corta (2-3 sem, al final de temporada)
+      mesoDefs.push({name:'Acumulación 3',type:'acumulacion',objective:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR 3',etapa:'Acumulación',micro:[['corriente',16],['choque',21],['corriente',16]]});
+      mesoDefs.push({name:'Transformación 3',type:'transformacion',objective:transObj,periodo:'Macrociclo ATR 3',etapa:'Transformación',micro:[['corriente',16],['choque',21],['aproximacion',17]]});
+      mesoDefs.push({name:'Realización 3',type:'realizacion',objective:'Ritmo competición / Técnica competición',periodo:'Macrociclo ATR 3',etapa:'Realización',micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1]]});
+    }
+    mesoDefs.push({name:'Restablecimiento',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Restablecimiento',micro:[['restablecimiento',8],['restablecimiento',6],['restablecimiento',4]]});
+  }
+  else if(macroType==='bloques'){
+    const bSub = getEl('bloquesSubtype')||'tecnico';
+    const bPer = parseInt(getEl('bloquesPerBlock'))||2;
+    const tecObj = bSub==='velocista'?'Fuerza explosivo-repetitiva / Potencia':'Fuerza explosivo-repetitiva / Rapidez ejecución / Técnica';
+    mesoDefs.push({name:'Introductorio',type:'introductorio',objective:'Acondicionamiento general / Técnica',periodo:'Preparatorio',etapa:'Etapa Preparación Condicional',micro:[['gradual',10],['corriente',16],['restablecimiento',8]]});
+    for(let i=0;i<bPer;i++) mesoDefs.push({name:`MS Fuerza ${i+1}`,type:'ms-fuerza',objective:'Fuerza máxima / Potencia aeróbica',periodo:'Preparatorio',etapa:'Bloque Fuerza',micro:[['choque',21],['choque',19],['restablecimiento',10]]});
+    for(let i=0;i<bPer;i++) mesoDefs.push({name:`MS Técnica ${i+1}`,type:'ms-tecnica',objective:tecObj,periodo:'Preparatorio',etapa:'Bloque Técnica',micro:[['corriente',17],['corriente',15],['restablecimiento',8]]});
+    mesoDefs.push({name:'Comp. Preliminares',type:'competicion',objective:tecObj,periodo:'Competiciones',etapa:'Competiciones Preliminares',micro:[['aproximacion',17],['aproximacion',15],['competicion',13,1]]});
+    // Macrociclo 2 (sin introductorio)
+    for(let i=0;i<bPer;i++) mesoDefs.push({name:`MS Fuerza ${bPer+i+1}`,type:'ms-fuerza',objective:'Fuerza máxima / Potencia aeróbica',periodo:'Preparatorio 2',etapa:'Bloque Fuerza',micro:[['choque',21],['choque',19],['restablecimiento',10]]});
+    for(let i=0;i<bPer;i++) mesoDefs.push({name:`MS Técnica ${bPer+i+1}`,type:'ms-tecnica',objective:tecObj,periodo:'Preparatorio 2',etapa:'Bloque Técnica',micro:[['corriente',17],['corriente',15],['restablecimiento',8]]});
+    mesoDefs.push({name:'RF',type:'rf',objective:'Restablecimiento de la fuerza (choque)',periodo:'Competiciones 2',etapa:'Competiciones Básicas',micro:[['choque',21]]});
+    mesoDefs.push({name:'RT',type:'rt',objective:'Restablecimiento de la técnica',periodo:'Competiciones 2',etapa:'Competiciones Básicas',micro:[['aproximacion',15]]});
+    mesoDefs.push({name:'Comp. Básicas',type:'competicion',objective:tecObj,periodo:'Competiciones 2',etapa:'Competiciones Básicas',micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1]]});
+    mesoDefs.push({name:'Regeneración',type:'restablecimiento',objective:'Regeneración',periodo:'Transitorio',etapa:'Regeneración',micro:[['restablecimiento',8],['restablecimiento',6],['restablecimiento',4]]});
+  }
+  else if(macroType==='larga-atr'){
+    mesoDefs.push({name:'Acumulación',type:'acumulacion',objective:'Fuerza máxima / Potencia aeróbica / Táctica individual — Sistemas de juego',periodo:'Macrociclo ATR',etapa:'Acumulación',micro:[['gradual',10],['corriente',16],['choque',21],['choque',21],['choque',21],['restablecimiento',8]]});
+    mesoDefs.push({name:'Transformación',type:'transformacion',objective:'Sistemas de juego / Umbral anaeróbico o Potencia aeróbica / Fuerza repetitiva',periodo:'Macrociclo ATR',etapa:'Transformación',micro:[['corriente',16],['choque',21],['choque',21],['aproximacion',17]]});
+    mesoDefs.push({name:'Realización',type:'realizacion',objective:'Modelo de competición / Velocidad o rapidez de ejecución / Ritmo competición',periodo:'Macrociclo ATR',etapa:'Realización',micro:[['competicion',15,1],['competicion',13,1],['competicion',11,1]]});
+    mesoDefs.push({name:'Restablecimiento',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Restablecimiento',micro:[['restablecimiento',8],['restablecimiento',6],['restablecimiento',4]]});
+  }
+
+  // Build weeks array from mesoDefs
+  const weeks = [];
+  mesoDefs.forEach((meso,mi)=>{
+    meso.micro.forEach(([mtype,load,isComp])=>{
+      weeks.push({weekNum:weeks.length+1,type:mtype,targetLoad:load,mesociclo:mi+1,mesoName:meso.name,etapa:meso.etapa,periodo:meso.periodo,competition:!!isComp,notes:''});
     });
   });
-  DB.plans.push({
-    id:uid(), athleteId:athId, coachId:S.user.id, name, title:name, sport, startDate:start, endDate,
+
+  const duration = weeks.length;
+  const endDate = new Date(new Date(start).getTime()+duration*7*24*60*60*1000).toISOString().slice(0,10);
+  const dayLabels=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const SES_BY_MICRO = {
+    gradual:   ['Técnica','Aeróbica','Descanso','Técnica','Aeróbica','Descanso','Descanso'],
+    corriente: ['Fuerza Máx.','Técnica','Potencia','Aeróbica','Técnica','Descanso','Descanso'],
+    choque:    ['Fuerza Máx.','Potencia','Fuerza Máx.','Potencia','Fuerza Máx.','Técnica','Descanso'],
+    aproximacion:['Fuerza Máx.','Técnica','Descanso','Potencia','Técnica','Activación','Descanso'],
+    competicion:['Descanso','Acondicionamiento','Descanso','Acondicionamiento','Activación','Competición','Descanso'],
+    restablecimiento:['Técnica','Aeróbica','Descanso','Técnica','Descanso','Descanso','Descanso']
+  };
+
+  DB.plans = DB.plans.filter(p=>p.athleteId!==athId);
+  const mesociclos = mesoDefs.map((meso,mi)=>({
+    num:mi+1, name:meso.name, type:meso.type, objective:meso.objective,
+    periodo:meso.periodo, etapa:meso.etapa,
+    microcycles: meso.micro.map(([mtype,load],wi)=>{
+      const sTypes = SES_BY_MICRO[mtype]||SES_BY_MICRO.corriente;
+      const isR = mtype==='restablecimiento'||mtype==='gradual';
+      return {weekNum:wi+1, microType:mtype, targetLoad:load,
+        sessions: dayLabels.map((day,di)=>({num:di+1,day,type:sTypes[di]||'Descanso',volume:sTypes[di]==='Descanso'?0:isR?50:mtype==='choque'?100:80,intensity:sTypes[di]==='Descanso'?0:isR?55:mtype==='choque'?85:70})),
+        observations:''};
+    })
+  }));
+  const evaluations = mesoDefs.map((_,i)=>({num:i+1,date:'',peso:0,grasa:0,masaMuscular:0,biceps:0,pecho:0,cintura:0,cadera:0,muslo:0,gemelo:0,observations:''}));
+  const detailedSessions = {};
+  mesociclos.forEach(m=>m.microcycles.forEach((_,wi)=>{
+    detailedSessions[`${m.num}-${wi+1}`]=Array.from({length:7},(_,si)=>({num:si+1,exercises:Array.from({length:7},()=>({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),observations:'',volume:''}));
+  }));
+  DB.plans.push({id:uid(),athleteId:athId,coachId:S.user.id,name,title:name,sport,macroType,startDate:start,endDate,
     schedule:{lunes:sport,martes:'Potencia',miercoles:'Aeróbica',jueves:sport,viernes:'Técnica',sabado:'—',domingo:'—'},
-    objectives:[obj,'',''], observations:'', weeks, mesociclos, evaluations, progress:[], detailedSessions
-  });
-  save(); closeModal(); toast('Macrociclo creado'); navigate('coach-macrociclo',{planAthlete:athId});
+    objectives:[obj,'',''],observations:'',weeks,mesociclos,evaluations,progress:[],detailedSessions});
+  save(); closeModal();
+  toast(`Macrociclo ${macroType.toUpperCase()} creado — ${duration} semanas, ${mesoDefs.length} mesociclos`);
+  navigate('coach-macrociclo',{planAthlete:athId});
 }
+
+// ===== MESO TEMPLATES CATALOGUE =====
+const MESO_TEMPLATES = {
+  tradicional:[
+    {value:'introductorio',label:'Introductorio',weeks:4,micro:['gradual','corriente','corriente','restablecimiento'],loads:[10,16,16,8],obj:'Acondicionamiento general / Técnica',periodo:'Preparatorio',etapa:'Etapa Preparación General'},
+    {value:'bpg',label:'BPG — Básico Preparación General',weeks:4,micro:['corriente','choque','corriente','restablecimiento'],loads:[14,21,16,8],obj:'Fuerza general / Resistencia general',periodo:'Preparatorio',etapa:'Etapa Preparación General'},
+    {value:'bpe',label:'BPE — Básico Preparación Especial',weeks:4,micro:['corriente','choque','choque','restablecimiento'],loads:[14,21,21,8],obj:'Capacidad aeróbica / Fuerza resistencia',periodo:'Preparatorio',etapa:'Etapa Preparación Específica'},
+    {value:'preparatorio',label:'Preparatorio (Estabilización)',weeks:4,micro:['choque','corriente','aproximacion','restablecimiento'],loads:[21,16,17,8],obj:'Ritmo competición / Rapidez ejecución',periodo:'Competiciones',etapa:'Estabilización de la Forma'},
+    {value:'competicion-inicio',label:'Competición — Inicio del período',weeks:4,micro:['aproximacion','competicion','competicion','restablecimiento'],loads:[17,15,13,8],obj:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones',etapa:'Competiciones Fundamentales'},
+    {value:'competicion-final',label:'Competición — Medio/Final del período',weeks:4,micro:['competicion','competicion','competicion','restablecimiento'],loads:[15,13,11,8],obj:'Ritmo competición / Rapidez ejecución / Técnica competición',periodo:'Competiciones',etapa:'Competiciones Fundamentales'},
+    {value:'intermedio',label:'Intermedio (entre períodos comp.)',weeks:6,micro:['restablecimiento','choque','choque','choque','choque','aproximacion'],loads:[8,21,21,21,21,17],obj:'½ obj. BPG (F. y Res. general) + ½ obj. BPE (F. y Res. específica)',periodo:'Competiciones',etapa:'Competiciones Fundamentales'},
+    {value:'restablecimiento',label:'Restablecimiento / Transitorio',weeks:4,micro:['corriente','corriente','restablecimiento','restablecimiento'],loads:[16,14,8,6],obj:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Regeneración'}
+  ],
+  atr:[
+    {value:'acumulacion-largo',label:'Acumulación — Inicio temporada (6 sem)',weeks:6,micro:['gradual','corriente','choque','choque','choque','restablecimiento'],loads:[10,16,21,21,21,8],obj:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR',etapa:'Acumulación'},
+    {value:'acumulacion',label:'Acumulación — Media temporada (4-5 sem)',weeks:5,micro:['corriente','choque','choque','corriente','restablecimiento'],loads:[16,21,21,16,8],obj:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR',etapa:'Acumulación'},
+    {value:'acumulacion-corto',label:'Acumulación — Fin temporada (2-3 sem)',weeks:3,micro:['corriente','choque','corriente'],loads:[16,21,16],obj:'Fuerza máxima / Potencia aeróbica',periodo:'Macrociclo ATR',etapa:'Acumulación'},
+    {value:'transformacion-rcd',label:'Transformación — R.C.D (nadador/ciclista)',weeks:4,micro:['corriente','choque','choque','aproximacion'],loads:[16,21,21,17],obj:'Potencia aeróbica / Fuerza repetitiva',periodo:'Macrociclo ATR',etapa:'Transformación'},
+    {value:'transformacion-rld',label:'Transformación — R.L.D (corredor/a)',weeks:4,micro:['corriente','choque','choque','aproximacion'],loads:[16,21,21,17],obj:'Umbral anaeróbico / Fuerza repetitiva',periodo:'Macrociclo ATR',etapa:'Transformación'},
+    {value:'realizacion',label:'Realización (1-3 sem)',weeks:3,micro:['aproximacion','competicion','competicion'],loads:[17,13,11],obj:'Ritmo competición / Técnica competición',periodo:'Macrociclo ATR',etapa:'Realización'},
+    {value:'descarga',label:'Descarga entre bloques (1 sem)',weeks:1,micro:['restablecimiento'],loads:[8],obj:'Regeneración',periodo:'Macrociclo ATR',etapa:'Restablecimiento'},
+    {value:'restablecimiento',label:'Restablecimiento — Fin temporada (3-4 sem)',weeks:3,micro:['restablecimiento','restablecimiento','restablecimiento'],loads:[8,6,4],obj:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Restablecimiento'}
+  ],
+  bloques:[
+    {value:'introductorio',label:'Introductorio (3 sem)',weeks:3,micro:['gradual','corriente','restablecimiento'],loads:[10,16,8],obj:'Acondicionamiento general / Técnica',periodo:'Preparatorio',etapa:'Etapa Preparación Condicional'},
+    {value:'ms-fuerza',label:'MS Fuerza (3 sem) — Fuerza máx. + Potencia aer.',weeks:3,micro:['choque','choque','restablecimiento'],loads:[21,19,10],obj:'Fuerza máxima / Potencia aeróbica',periodo:'Preparatorio',etapa:'Bloque Fuerza'},
+    {value:'ms-tecnica-tecnico',label:'MS Técnica — Gimnasia/Lanzadores (3 sem)',weeks:3,micro:['corriente','corriente','restablecimiento'],loads:[17,15,8],obj:'Fuerza explosivo-repetitiva / Rapidez ejecución / Técnica',periodo:'Preparatorio',etapa:'Bloque Técnica'},
+    {value:'ms-tecnica-vel',label:'MS Técnica — Velocistas (3 sem)',weeks:3,micro:['corriente','corriente','restablecimiento'],loads:[17,15,8],obj:'Fuerza explosivo-repetitiva / Potencia',periodo:'Preparatorio',etapa:'Bloque Técnica'},
+    {value:'ms-comp-1',label:'MS Competición — 1 competición',weeks:3,micro:['corriente','aproximacion','competicion'],loads:[17,15,13],obj:'Ritmo competición / Técnica competición',periodo:'Competiciones',etapa:'Competiciones'},
+    {value:'ms-comp-2',label:'MS Competición — 2 competiciones',weeks:3,micro:['corriente','competicion','competicion'],loads:[17,15,13],obj:'Ritmo competición / Técnica competición',periodo:'Competiciones',etapa:'Competiciones'},
+    {value:'rf',label:'RF — Restablecimiento Fuerza (1 sem CH)',weeks:1,micro:['choque'],loads:[21],obj:'Restablecimiento de la fuerza',periodo:'Competiciones',etapa:'Competiciones Básicas'},
+    {value:'rt',label:'RT — Restablecimiento Técnica (1 sem A)',weeks:1,micro:['aproximacion'],loads:[15],obj:'Restablecimiento de la técnica',periodo:'Competiciones',etapa:'Competiciones Básicas'},
+    {value:'restablecimiento',label:'Regeneración — Transitorio (3 sem)',weeks:3,micro:['restablecimiento','restablecimiento','restablecimiento'],loads:[8,6,4],obj:'Regeneración',periodo:'Transitorio',etapa:'Regeneración'}
+  ]
+};
 
 // ===== CREATE/EDIT MESOCICLO =====
 function showCreateMesoModal(athId){
@@ -3009,69 +3334,89 @@ function showCreateMesoModal(athId){
   if(!plan){toast('No hay macrociclo. Créalo primero.','error');return;}
   const ath = getAthleteById(athId);
   const numExisting = plan.mesociclos?plan.mesociclos.length:0;
+  const mType = plan.macroType||'tradicional';
+  const tplKey = mType.includes('tradicional')||mType.includes('larga-t')?'tradicional':mType.includes('atr')||mType.includes('larga-a')?'atr':'bloques';
+  const templates = MESO_TEMPLATES[tplKey]||MESO_TEMPLATES.tradicional;
+  const defTpl = templates[Math.min(numExisting, templates.length-1)];
+  const seqPreview = defTpl?defTpl.micro.map((m,i)=>`<span class="micro-tag ${m}" style="margin:1px;font-size:9px">${getMicroTypeCode(m)}(${defTpl.loads[i]})</span>`).join(' → '):'—';
   showModal(`
     <div class="modal-hdr"><div class="modal-title">Añadir Mesociclo — ${ath?ath.name:''}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
-    <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Actualmente hay <strong>${numExisting}</strong> mesociclos. El nuevo se añadirá como Mesociclo ${numExisting+1}.</div>
-    <div class="grid-2">
-      <div class="form-group"><label>Nombre</label><input type="text" id="mesoName" value="Mes ${numExisting+1}" placeholder="Ej: Acumulación"></div>
-      <div class="form-group"><label>Nº Microciclos (semanas)</label><input type="number" id="mesoWeeks" value="4" min="1" max="8"></div>
-    </div>
-    <div class="form-group"><label>Plantilla de sesiones</label>
-      <select id="mesoTemplate">
-        <option value="standard">Estándar (5 días + 2 descanso)</option>
-        <option value="strength">Fuerza (4 días + 3 descanso)</option>
-        <option value="hypertrophy">Hipertrofia (6 días + 1 descanso)</option>
-        <option value="deload">Descarga (3 días + 4 descanso)</option>
-        <option value="empty">Vacío (todo en blanco)</option>
+    <div class="info-box mb-16"><i class="fas fa-info-circle"></i>Mesociclo <strong>${numExisting+1}</strong> · Periodización <strong>${mType.toUpperCase()}</strong>. El nuevo se añadirá al final del plan.</div>
+    <div class="form-group"><label>Tipo de mesociclo</label>
+      <select id="mesoType" onchange="updateMesoModalFromType(${athId})">
+        ${templates.map(t=>`<option value="${t.value}">${t.label}</option>`).join('')}
       </select>
     </div>
     <div class="grid-2">
-      <div class="form-group"><label>Volumen base</label><input type="number" id="mesoVol" value="80" min="0" max="300" placeholder="80"></div>
-      <div class="form-group"><label>Intensidad base (%)</label><input type="number" id="mesoInt" value="70" min="0" max="100" placeholder="70"></div>
+      <div class="form-group"><label>Nombre</label><input type="text" id="mesoName" value="${defTpl?defTpl.label.split('—')[0].trim():`Mes ${numExisting+1}`}" placeholder="Nombre del mesociclo"></div>
+      <div class="form-group"><label>Nº Microciclos (semanas)</label><input type="number" id="mesoWeeks" value="${defTpl?defTpl.weeks:4}" min="1" max="8"></div>
     </div>
-    <div class="form-group"><label>Objetivo del mesociclo</label><input type="text" id="mesoObj" value="" placeholder="Ej: Aumentar fuerza máxima en tren inferior"></div>
+    <div class="form-group"><label>Secuencia de microciclos</label>
+      <div id="mesoMicroSeq" style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:3px;font-family:var(--mono);font-size:12px;min-height:32px">${seqPreview}</div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Período</label><input type="text" id="mesoPeriodo" value="${defTpl?defTpl.periodo:'Preparatorio'}" placeholder="Período"></div>
+      <div class="form-group"><label>Etapa</label><input type="text" id="mesoEtapa" value="${defTpl?defTpl.etapa:'Etapa Preparación General'}" placeholder="Etapa"></div>
+    </div>
+    <div class="form-group"><label>Objetivo</label><input type="text" id="mesoObj" value="${defTpl?defTpl.obj:''}" placeholder="Objetivo del mesociclo"></div>
     <button class="btn btn-primary btn-full mt-16" onclick="addMesociclo(${athId})"><i class="fas fa-plus"></i> Crear Mesociclo</button>
-  `, 520);
+  `, 560);
+  window._mesoTplKey = tplKey;
+}
+function updateMesoModalFromType(athId){
+  const typeVal = document.getElementById('mesoType').value;
+  const templates = MESO_TEMPLATES[window._mesoTplKey]||MESO_TEMPLATES.tradicional;
+  const tpl = templates.find(t=>t.value===typeVal);
+  if(!tpl) return;
+  document.getElementById('mesoName').value = tpl.label.split('—')[0].trim();
+  document.getElementById('mesoWeeks').value = tpl.weeks;
+  document.getElementById('mesoObj').value = tpl.obj;
+  document.getElementById('mesoPeriodo').value = tpl.periodo;
+  document.getElementById('mesoEtapa').value = tpl.etapa;
+  const seq = document.getElementById('mesoMicroSeq');
+  if(seq) seq.innerHTML = tpl.micro.map((m,i)=>`<span class="micro-tag ${m}" style="margin:1px;font-size:9px">${getMicroTypeCode(m)}(${tpl.loads[i]})</span>`).join(' → ');
 }
 
 function addMesociclo(athId){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(!plan) return;
   if(!plan.mesociclos) plan.mesociclos = [];
+  const mesoType = document.getElementById('mesoType').value;
   const name = document.getElementById('mesoName').value.trim()||`Mes ${plan.mesociclos.length+1}`;
   const numWeeks = Math.min(8,Math.max(1,parseInt(document.getElementById('mesoWeeks').value)||4));
-  const template = document.getElementById('mesoTemplate').value;
-  const vol = parseInt(document.getElementById('mesoVol').value)||80;
-  const int = parseInt(document.getElementById('mesoInt').value)||70;
   const obj = document.getElementById('mesoObj').value.trim();
+  const periodo = document.getElementById('mesoPeriodo').value.trim();
+  const etapa = document.getElementById('mesoEtapa').value.trim();
+  const templates = MESO_TEMPLATES[window._mesoTplKey]||MESO_TEMPLATES.tradicional;
+  const tpl = templates.find(t=>t.value===mesoType);
 
   const dayLabels=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const templates = {
-    standard: [{t:'Hipertrofia',v:1,i:1},{t:'Fuerza Máx.',v:1.1,i:1.1},{t:'Potencia',v:.9,i:.95},{t:'Aeróbica',v:.8,i:.7},{t:'Técnica',v:.7,i:.6},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0}],
-    strength: [{t:'Fuerza Máx.',v:1.2,i:1.2},{t:'Potencia',v:1,i:1},{t:'Descanso',v:0,i:0},{t:'Fuerza Máx.',v:1.1,i:1.15},{t:'Acondicionamiento',v:.7,i:.6},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0}],
-    hypertrophy: [{t:'Hipertrofia',v:1.2,i:.85},{t:'Hipertrofia',v:1.1,i:.8},{t:'Potencia',v:.8,i:1},{t:'Hipertrofia',v:1.15,i:.85},{t:'Hipertrofia',v:1,i:.8},{t:'Técnica',v:.6,i:.5},{t:'Descanso',v:0,i:0}],
-    deload: [{t:'Técnica',v:.5,i:.5},{t:'Descanso',v:0,i:0},{t:'Aeróbica',v:.4,i:.4},{t:'Descanso',v:0,i:0},{t:'Técnica',v:.5,i:.5},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0}],
-    empty: [{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0},{t:'Descanso',v:0,i:0}]
+  const SES_BY_MICRO={
+    gradual:['Técnica','Aeróbica','Descanso','Técnica','Aeróbica','Descanso','Descanso'],
+    corriente:['Fuerza Máx.','Técnica','Potencia','Aeróbica','Técnica','Descanso','Descanso'],
+    choque:['Fuerza Máx.','Potencia','Fuerza Máx.','Potencia','Fuerza Máx.','Técnica','Descanso'],
+    aproximacion:['Fuerza Máx.','Técnica','Descanso','Potencia','Técnica','Activación','Descanso'],
+    competicion:['Descanso','Acondicionamiento','Descanso','Acondicionamiento','Activación','Competición','Descanso'],
+    restablecimiento:['Técnica','Aeróbica','Descanso','Técnica','Descanso','Descanso','Descanso']
   };
-  const tpl = templates[template]||templates.standard;
 
-  const microcycles = Array.from({length:numWeeks},(_,wi)=>({
-    weekNum:wi+1,
-    sessions: Array.from({length:7},(_,di)=>({
-      num:di+1, day:dayLabels[di],
-      type:tpl[di].t,
-      volume: Math.round(vol*tpl[di].v),
-      intensity: Math.round(int*tpl[di].i)
-    })),
-    observations:''
-  }));
+  const microcycles = Array.from({length:numWeeks},(_,wi)=>{
+    const mtype = tpl?(tpl.micro[wi]||tpl.micro[tpl.micro.length-1]):'corriente';
+    const load = tpl?(tpl.loads[wi]||tpl.loads[tpl.loads.length-1]):getMicroTypeLoad(mtype);
+    const sTypes = SES_BY_MICRO[mtype]||SES_BY_MICRO.corriente;
+    const isR = mtype==='restablecimiento'||mtype==='gradual';
+    return {weekNum:wi+1, microType:mtype, targetLoad:load,
+      sessions: dayLabels.map((day,di)=>({num:di+1,day,type:sTypes[di]||'Descanso',
+        volume:sTypes[di]==='Descanso'?0:isR?50:mtype==='choque'?100:80,
+        intensity:sTypes[di]==='Descanso'?0:isR?55:mtype==='choque'?85:70})),
+      observations:''};
+  });
 
-  plan.mesociclos.push({num:plan.mesociclos.length+1, name, microcycles, objective:obj});
-  // Also add evaluation slot
+  plan.mesociclos.push({num:plan.mesociclos.length+1,name,type:mesoType,objective:obj,periodo,etapa,microcycles});
   if(!plan.evaluations) plan.evaluations=[];
-  plan.evaluations.push({num:plan.evaluations.length+1, date:'', peso:0, grasa:0, masaMuscular:0, biceps:0, pecho:0, cintura:0, cadera:0, muslo:0, gemelo:0, observations:''});
-  save(); closeModal(); toast(`Mesociclo "${name}" creado con ${numWeeks} microciclos`);
-  navigate('coach-mesociclo',{planAthlete:athId, mesoNum:plan.mesociclos.length});
+  plan.evaluations.push({num:plan.evaluations.length+1,date:'',peso:0,grasa:0,masaMuscular:0,biceps:0,pecho:0,cintura:0,cadera:0,muslo:0,gemelo:0,observations:''});
+  save(); closeModal(); toast(`Mesociclo "${name}" creado — ${numWeeks} microciclos`);
+  navigate('coach-mesociclo',{planAthlete:athId,mesoNum:plan.mesociclos.length});
 }
 
 // ===== DELETE MESOCICLO =====
@@ -3219,70 +3564,110 @@ function addMicrocicloToMeso(athId, mesoIdx){
 function viewReportDetail(rid){
   const r = DB.reports.find(rp=>rp.id===rid);
   if(!r) return;
-  // Mark as viewed
   r.viewed = true;
   save();
 
-  const a = getAthleteById(r.athleteId);
-  const st = getStatus(r.athleteId);
-  const ratio = getRatio(r.athleteId);
-  const well = getRecentWellness(r.athleteId)||0;
-  const cmjChg = getCMJChange(r.athleteId);
-  const recentCMJ = getRecentCMJ(r.athleteId)||0;
+  const aid = r.athleteId;
+  const a = getAthleteById(aid);
+  const st = getStatus(aid);
+  const ratio = getRatio(aid);
+  const well = getRecentWellness(aid)||0;
+  const cmjChg = getCMJChange(aid);
+  const recentCMJ = getRecentCMJ(aid)||0;
+  const interp = getStatusInterpretation(aid);
+  const sessions7 = getAthleteSessions7d(aid);
+  const gaugePos = Math.min(100,Math.max(0,(ratio/2)*100));
+  const semCol = st==='verde'?'#3A8A4A':st==='amarillo'?'#C8A030':'#C04040';
+  const semBg = st==='verde'?'rgba(74,122,90,.12)':st==='amarillo'?'rgba(158,128,53,.12)':'rgba(160,64,64,.12)';
 
-  const html = `
-    <div class="report-box">
-      <div class="rpt-hdr">
-        <div><div class="rpt-logo">Fatiga<span>Monitor</span> Pro</div><div style="font-size:12px;color:#6b7280;margin-top:4px">Sistema de Monitorización del Entrenamiento</div></div>
-        <div class="rpt-meta"><div style="font-weight:600;color:#111827">Informe ${r.type==='weekly'?'Semanal':'Mensual'}</div><div>${fmtDate(r.createdAt)}</div><div>Período: ${fmtShort(r.dateFrom)} — ${fmtShort(r.dateTo)}</div></div>
-      </div>
-      <div class="rpt-title">${r.title}</div>
-      <div style="font-size:14px;color:#4b5563;margin-bottom:24px">${a?a.name:''} · ${a?a.sport:''}</div>
-
-      <div class="rpt-section">
-        <div class="rpt-section-title">Indicadores Clave</div>
-        <div class="rpt-grid">
-          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${ratio>=0.8&&ratio<=1.3?'var(--ok)':ratio<=1.5?'var(--warn)':'var(--danger)'}">${ratio}</div><div class="rpt-stat-lbl">Ratio Aguda/Crónica</div></div>
-          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${well>=3.5?'var(--ok)':well>=2.5?'var(--warn)':'var(--danger)'}">${well.toFixed(1)}/5</div><div class="rpt-stat-lbl">Wellness Score</div></div>
-          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${cmjChg>=-5?'var(--ok)':cmjChg>=-10?'var(--warn)':'var(--danger)'}">${recentCMJ} cm (${cmjChg>0?'+':''}${cmjChg}%)</div><div class="rpt-stat-lbl">CMJ Promedio</div></div>
-        </div>
-      </div>
-
-      <div class="rpt-section">
-        <div class="rpt-section-title">Estado General</div>
-        <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:3px;font-family:var(--mono);font-weight:400;font-size:12px;border:1px solid ${st==='verde'?'rgba(74,122,90,.3);color:var(--ok);background:rgba(74,122,90,.08)':st==='amarillo'?'rgba(139,115,64,.3);color:var(--warn);background:rgba(139,115,64,.08)':'rgba(160,64,64,.3);color:var(--danger);background:rgba(160,64,64,.08)'}">
-          &#9679; ${statusLabel(st)} — ${statusMsg(st)}
-        </div>
-      </div>
-
-      <div class="rpt-section">
-        <div class="rpt-section-title">Observaciones y Recomendaciones</div>
-        <div style="font-size:14px;line-height:1.7;color:#374151">${r.content}</div>
-      </div>
-
-      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
-        FatigaMonitor Pro · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
-      </div>
-    </div>`;
+  // Render charts inline in the modal using unique IDs
+  const uid_rpt = Date.now();
 
   showModal(`
     <div class="modal-hdr">
-      <div class="modal-title">Informe</div>
+      <div class="modal-title">Informe — ${a?a.name:''}</div>
       <div class="flex gap-8">
-        <button class="btn btn-secondary btn-sm" onclick="printReport(\`${encodeURIComponent(html)}\`)"><i class="fas fa-print"></i> Imprimir</button>
+        <button class="btn btn-secondary btn-sm" onclick="printSavedReport('${r.id}')"><i class="fas fa-file-pdf"></i> PDF</button>
         <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
       </div>
     </div>
-    ${html}
-  `, 800);
+    <div class="report-box" style="padding:32px">
+      <div class="rpt-hdr">
+        <div><div class="rpt-logo">Fatiga<span>Monitor</span> Pro</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Sistema de Monitorización del Entrenamiento</div></div>
+        <div class="rpt-meta"><div style="font-weight:600;color:#1a1a1a">${r.title}</div><div>${fmtDate(r.createdAt)}</div></div>
+      </div>
+
+      <div style="font-size:14px;color:#4b5563;margin-bottom:20px">${a?a.name:''} · ${a?a.sport:''} · ${a?a.age:''} años</div>
+
+      <div class="rpt-section">
+        <div class="rpt-section-title">Estado — Semáforo</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:4px;background:${semBg};border:1px solid ${semCol}33;margin-bottom:8px">
+          <div style="width:14px;height:14px;border-radius:50%;background:${semCol};box-shadow:0 0 8px ${semCol}88;flex-shrink:0"></div>
+          <div><div style="font-family:var(--serif);font-size:17px;color:${semCol}">${statusLabel(st)}</div><div style="font-size:11px;color:#666">${statusMsg(st)}</div></div>
+        </div>
+        <div style="padding:10px 14px;border-radius:3px;background:${semBg};border:1px solid ${semCol}22;font-size:11px;line-height:1.5;margin-bottom:4px">
+          <div style="font-weight:600;font-size:9px;color:${semCol};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Interpretación</div>
+          ${interp.interpretation}
+          <div style="color:#555;margin-top:4px"><strong style="color:${semCol}">Recomendación:</strong> ${interp.recommendation}</div>
+        </div>
+      </div>
+
+      <div class="rpt-section">
+        <div class="rpt-section-title">Indicadores Clave</div>
+        <div class="rpt-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${ratio>=0.8&&ratio<=1.3?'var(--ok)':ratio<=1.5?'var(--warn)':'var(--danger)'}">${ratio}</div><div class="rpt-stat-lbl">Ratio A/C</div></div>
+          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${well>=3.5?'var(--ok)':well>=2.5?'var(--warn)':'var(--danger)'}">${well.toFixed(1)}/5</div><div class="rpt-stat-lbl">Wellness</div></div>
+          <div class="rpt-stat"><div class="rpt-stat-val" style="color:${cmjChg>=-5?'var(--ok)':cmjChg>=-10?'var(--warn)':'var(--danger)'}">${recentCMJ} cm</div><div class="rpt-stat-lbl">CMJ (${cmjChg>0?'+':''}${cmjChg}%)</div></div>
+          <div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--accent)">${sessions7}</div><div class="rpt-stat-lbl">Sesiones (7d)</div></div>
+        </div>
+        <div style="margin-top:8px">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Ratio Aguda/Crónica</div>
+          <div class="ratio-gauge"><div class="ratio-zones"><div class="z-low"></div><div class="z-ok"></div><div class="z-warn"></div><div class="z-hi"></div></div><div class="ratio-marker" style="left:${gaugePos}%"></div></div>
+          <div class="flex justify-between" style="font-size:9px;color:var(--muted)"><span>0.0</span><span>0.8</span><span>1.3</span><span>1.5</span><span>2.0</span></div>
+        </div>
+      </div>
+
+      <div class="rpt-section">
+        <div class="rpt-section-title">Gráficas</div>
+        <div class="grid-2 mb-12">
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px">CMJ — Tendencia</div><div class="chart-box" style="height:180px"><canvas id="rptChartCMJ_${uid_rpt}"></canvas></div></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px">Wellness Score</div><div class="chart-box" style="height:180px"><canvas id="rptChartWell_${uid_rpt}"></canvas></div></div>
+        </div>
+        <div class="grid-2 mb-12">
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px">Carga Semanal</div><div class="chart-box" style="height:180px"><canvas id="rptChartLoad_${uid_rpt}"></canvas></div></div>
+          <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px">Ratio A/C Evolución</div><div class="chart-box" style="height:180px"><canvas id="rptChartRatio_${uid_rpt}"></canvas></div></div>
+        </div>
+      </div>
+
+      ${r.content?`<div class="rpt-section"><div class="rpt-section-title">Observaciones</div><div style="font-size:13px;line-height:1.7;color:#374151">${r.content}</div></div>`:''}
+
+      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">
+        FatigaMonitor Pro · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+      </div>
+    </div>
+  `, 860);
+
+  // Render inline charts after modal is shown
+  setTimeout(()=>{
+    const cmjData = DB.cmj.filter(c=>c.athleteId===aid && c.date>=daysAgo(60)).sort((a,b)=>a.date.localeCompare(b.date));
+    const wellData = DB.wellness.filter(w=>w.athleteId===aid && w.date>=daysAgo(60)).sort((a,b)=>a.date.localeCompare(b.date));
+    if(cmjData.length>=2) mkChart('rptChartCMJ_'+uid_rpt,{type:'line',data:{labels:cmjData.map(c=>fmtShort(c.date)),datasets:[{label:'CMJ (cm)',data:cmjData.map(c=>c.value),borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,.1)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]}});
+    if(wellData.length>=2) mkChart('rptChartWell_'+uid_rpt,{type:'line',data:{labels:wellData.map(w=>fmtShort(w.date)),datasets:[{label:'Wellness',data:wellData.map(w=>w.score),borderColor:'#4A7A5A',backgroundColor:'rgba(74,122,90,.1)',fill:true,tension:.3,pointRadius:1,borderWidth:2}]},options:{scales:{y:{min:1,max:5}}}});
+    // Load chart
+    const wkL=[],wkD=[];
+    for(let w=7;w>=0;w--){wkL.push('Sem -'+w);const f=daysAgo((w+1)*7),t=daysAgo(w*7);wkD.push(+DB.sessions.filter(s=>s.athleteId===aid&&s.date>f&&s.date<=t).reduce((sm,s)=>sm+s.extLoad,0).toFixed(1));}
+    mkChart('rptChartLoad_'+uid_rpt,{type:'bar',data:{labels:wkL,datasets:[{label:'Carga',data:wkD,backgroundColor:'rgba(91,79,138,.6)',borderRadius:4}]},options:{plugins:{legend:{display:false}}}});
+    // Ratio chart
+    const rArr=[];
+    for(let w=3;w>=0;w--){const wA=DB.sessions.filter(s=>s.athleteId===aid&&s.date>daysAgo((w+1)*7)&&s.date<=daysAgo(w*7)).reduce((sm,s)=>sm+s.extLoad,0);let wC=0;for(let cw=0;cw<4;cw++)wC+=DB.sessions.filter(s=>s.athleteId===aid&&s.date>daysAgo((w+cw+1)*7)&&s.date<=daysAgo((w+cw)*7)).reduce((sm,s)=>sm+s.extLoad,0);wC/=4;rArr.push(wC?+(wA/wC).toFixed(2):1);}
+    mkChart('rptChartRatio_'+uid_rpt,{type:'line',data:{labels:['Sem -3','Sem -2','Sem -1','Actual'],datasets:[{label:'Ratio A/C',data:rArr,borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,.12)',fill:true,tension:.3,pointRadius:4,borderWidth:2},{label:'Zona ideal',data:[0.8,0.8,0.8,0.8],borderColor:'rgba(74,122,90,.4)',borderDash:[4,4],pointRadius:0,borderWidth:1},{label:'Límite sup.',data:[1.3,1.3,1.3,1.3],borderColor:'rgba(158,128,53,.4)',borderDash:[4,4],pointRadius:0,borderWidth:1}]},options:{scales:{y:{min:0,max:2}}}});
+  },100);
 }
 
-function printReport(encodedHtml){
-  const html = decodeURIComponent(encodedHtml);
-  const w = window.open('','_blank','width=800,height=900');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif;margin:0;padding:20px}${document.querySelector('style').textContent}</style></head><body>${html}</body></html>`);
-  w.document.close();
-  setTimeout(()=>w.print(),500);
+function printSavedReport(rid){
+  const r = DB.reports.find(rp=>rp.id===rid);
+  if(!r) return;
+  generateFullReport(r.athleteId);
 }
 
 // ===== MODALS =====
@@ -3517,34 +3902,32 @@ function addSession(){
 }
 
 // Report Generation Modal
-function showReportModal(aid){
+function generateAndSaveReport(aid){
   const a = getAthleteById(aid);
-  showModal(`
-    <div class="modal-hdr"><div class="modal-title">Generar Informe — ${a.name}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
-    <div class="form-group"><label>Tipo de Informe</label><select id="rptType"><option value="weekly">Semanal</option><option value="monthly">Mensual</option></select></div>
-    <div class="grid-2">
-      <div class="form-group"><label>Desde</label><input type="date" id="rptFrom" value="${daysAgo(7)}"></div>
-      <div class="form-group"><label>Hasta</label><input type="date" id="rptTo" value="${TODAY}"></div>
-    </div>
-    <div class="form-group"><label>Título del Informe</label><input type="text" id="rptTitle" placeholder="Informe Semanal — Semana X"></div>
-    <div class="form-group"><label>Observaciones y Recomendaciones</label><textarea id="rptContent" rows="4" placeholder="Escribe las observaciones del período, recomendaciones de ajuste de cargas, notas sobre la evolución del atleta..."></textarea></div>
-    <button class="btn btn-primary btn-full mt-16" onclick="generateReport(${aid})"><i class="fas fa-file-alt"></i> Generar Informe</button>
-  `, 560);
-}
+  if(!a){toast('Atleta no encontrado','error');return;}
+  const st = getStatus(aid);
+  const interp = getStatusInterpretation(aid);
+  const ratio = getRatio(aid);
+  const well = (getRecentWellness(aid)||0).toFixed(1);
+  const cmjChg = getCMJChange(aid);
+  const recentCMJ = getRecentCMJ(aid)||0;
 
-function generateReport(aid){
-  const type = document.getElementById('rptType').value;
-  const dateFrom = document.getElementById('rptFrom').value;
-  const dateTo = document.getElementById('rptTo').value;
-  const title = document.getElementById('rptTitle').value.trim() || `Informe ${type==='weekly'?'Semanal':'Mensual'}`;
-  const content = document.getElementById('rptContent').value.trim();
-  if(!content){toast('Escribe las observaciones del informe','error');return;}
+  // Auto-generate content from current data
+  const autoContent = `${interp.interpretation} ${interp.recommendation}`;
 
-  DB.reports.push({id:uid(), athleteId:aid, coachId:S.user.id, type, title, dateFrom, dateTo, createdAt:TODAY, viewed:false, content});
+  // Save to DB
+  const reportId = uid();
+  DB.reports.push({
+    id:reportId, athleteId:aid, coachId:S.user.id, type:'auto',
+    title:`Informe ${a.name} — ${fmtDate(TODAY)}`,
+    dateFrom:daysAgo(7), dateTo:TODAY, createdAt:TODAY, viewed:false,
+    content:autoContent
+  });
   save();
-  closeModal();
-  toast('Informe generado y disponible para el atleta');
-  navigate(S.view, S.params);
+  toast('Informe generado');
+
+  // Show it immediately
+  viewReportDetail(reportId);
 }
 
 // ===== FULL A4 REPORT WITH CHARTS =====
