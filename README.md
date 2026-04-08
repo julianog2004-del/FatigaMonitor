@@ -67,8 +67,8 @@ Cualquier persona con el enlace puede acceder directamente, registrarse con cual
 | Entrenador | Email | Atleta asignado |
 |---|---|---|
 | Julián Orejas | `coach1@fatiga.es` | Carlos Martínez — Entrenamiento de Fuerza |
-| Marta Ruiz | `coach2@fatiga.es` | Ana García — Powerlifting |
-| Alex Pérez | `coach3@fatiga.es` | Diego López — CrossFit |
+| El Toro | `coach2@fatiga.es` | Ana García — Powerlifting |
+| Tercero | `coach3@fatiga.es` | Diego López — CrossFit |
 
 Cada entrenador ve **solo sus propios atletas** y puede crear nuevos atletas, planes, mesociclos, informes nutricionales y menús semanales. Todos los datos que crees quedan asociados a tu cuenta de entrenador y se guardan automáticamente en el navegador.
 

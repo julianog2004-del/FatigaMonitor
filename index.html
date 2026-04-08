@@ -349,11 +349,11 @@
         </button>
         <button class="demo-btn role-coach" onclick="quickLogin('coach2@fatiga.es','coach123')">
           <div class="ri"><i class="fas fa-clipboard-check"></i></div>
-          <div><div class="nm">Marta Ruiz (Entrenador 2)</div><div class="cr">coach2@fatiga.es / coach123</div></div>
+          <div><div class="nm">El Toro (Entrenador 2)</div><div class="cr">coach2@fatiga.es / coach123</div></div>
         </button>
         <button class="demo-btn role-coach" onclick="quickLogin('coach3@fatiga.es','coach123')">
           <div class="ri"><i class="fas fa-clipboard-check"></i></div>
-          <div><div class="nm">Alex Pérez (Entrenador 3)</div><div class="cr">coach3@fatiga.es / coach123</div></div>
+          <div><div class="nm">Tercero (Entrenador 3)</div><div class="cr">coach3@fatiga.es / coach123</div></div>
         </button>
       </div>
     </div>
@@ -400,7 +400,7 @@ let DB = { users:[], athletes:[], sessions:[], wellness:[], cmj:[], reports:[], 
 let CLIPBOARD = { type: null, data: null }; // For copy/paste sessions
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 5; // Bump this when data model changes
+const DB_VERSION = 6; // Bump this when data model changes
 function save(){ localStorage.setItem('fm_db', JSON.stringify(DB)); localStorage.setItem('fm_db_version', DB_VERSION); }
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
@@ -414,8 +414,8 @@ function load(){
 function seed(){
   DB.users = [
     {id:1, name:'Julián Orejas', email:'coach1@fatiga.es', pass:'coach123', type:'coach'},
-    {id:2, name:'Marta Ruiz',    email:'coach2@fatiga.es', pass:'coach123', type:'coach'},
-    {id:3, name:'Alex Pérez',    email:'coach3@fatiga.es', pass:'coach123', type:'coach'},
+    {id:2, name:'El Toro',       email:'coach2@fatiga.es', pass:'coach123', type:'coach'},
+    {id:3, name:'Tercero',       email:'coach3@fatiga.es', pass:'coach123', type:'coach'},
     {id:4, name:'Carlos Martínez', email:'carlos@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
     {id:5, name:'Ana García',      email:'ana@fatiga.es',    pass:'atleta123', type:'athlete', athleteId:2},
     {id:6, name:'Diego López',     email:'diego@fatiga.es',  pass:'atleta123', type:'athlete', athleteId:3}
