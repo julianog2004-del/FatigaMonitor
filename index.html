@@ -6225,17 +6225,18 @@ function closeModal(){ document.getElementById('modalBox').classList.add('hidden
 function showAddAthleteModal(){
   showModal(`
     <div class="modal-hdr"><div class="modal-title">Nuevo Atleta</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
-    <div class="form-group"><label>Nombre completo</label><input type="text" id="newAthName" placeholder="Nombre Apellido"></div>
+    <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;font-family:var(--mono)">Solo el nombre es obligatorio. Puedes completar el resto más tarde.</p>
+    <div class="form-group"><label>Nombre completo *</label><input type="text" id="newAthName" placeholder="Nombre Apellido"></div>
     <div class="grid-2">
-      <div class="form-group"><label>Deporte</label><input type="text" id="newAthSport" placeholder="Ej: Powerlifting"></div>
-      <div class="form-group"><label>Edad</label><input type="number" id="newAthAge" placeholder="25"></div>
+      <div class="form-group"><label>Deporte</label><input type="text" id="newAthSport" placeholder="Ej: Powerlifting (opcional)"></div>
+      <div class="form-group"><label>Edad</label><input type="number" id="newAthAge" placeholder="opcional"></div>
     </div>
     <div class="grid-3">
-      <div class="form-group"><label>Peso (kg)</label><input type="number" id="newAthWeight" placeholder="75"></div>
-      <div class="form-group"><label>Altura (cm)</label><input type="number" id="newAthHeight" placeholder="175"></div>
-      <div class="form-group"><label>CMJ Baseline (cm)</label><input type="number" id="newAthCMJ" placeholder="40"></div>
+      <div class="form-group"><label>Peso (kg)</label><input type="number" id="newAthWeight" placeholder="opcional"></div>
+      <div class="form-group"><label>Altura (cm)</label><input type="number" id="newAthHeight" placeholder="opcional"></div>
+      <div class="form-group"><label>CMJ Baseline (cm)</label><input type="number" id="newAthCMJ" placeholder="opcional"></div>
     </div>
-    <div class="form-group"><label>Email (para acceso)</label><input type="email" id="newAthEmail" placeholder="atleta@email.com"></div>
+    <div class="form-group"><label>Email (para acceso)</label><input type="email" id="newAthEmail" placeholder="opcional — se generará uno si lo dejas vacío"></div>
     <button class="btn btn-primary btn-full mt-16" onclick="addAthlete()"><i class="fas fa-plus"></i> Crear Atleta</button>
   `);
 }
@@ -6247,15 +6248,16 @@ function addAthlete(){
   const weight=parseInt(document.getElementById('newAthWeight').value);
   const height=parseInt(document.getElementById('newAthHeight').value);
   const cmjBase=parseFloat(document.getElementById('newAthCMJ').value);
-  const email=document.getElementById('newAthEmail').value.trim();
-  if(!name||!sport||!age||!email){toast('Completa los campos obligatorios','error');return;}
+  let email=document.getElementById('newAthEmail').value.trim();
+  if(!name){toast('Indica al menos el nombre del atleta','error');return;}
 
   const athId = DB.athletes.length?Math.max(...DB.athletes.map(a=>a.id))+1:1;
   const userId = DB.users.length?Math.max(...DB.users.map(u=>u.id))+1:1;
   const initials = name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  if(!email){ const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'.').replace(/^\.|\.$/g,'')||'atleta'; email = `${slug}.${athId}@fatiga.local`; }
 
   DB.users.push({id:userId, name, email, pass:'atleta123', type:'athlete', athleteId:athId});
-  DB.athletes.push({id:athId, userId, name, sport, age:age||0, weight:weight||0, height:height||0, cmjBase:cmjBase||35, coachId:S.user.id, photo:initials});
+  DB.athletes.push({id:athId, userId, name, sport:sport||'—', age:age||0, weight:weight||0, height:height||0, cmjBase:cmjBase||35, coachId:S.user.id, photo:initials});
   const endDate = new Date(new Date(TODAY).getTime() + 365*24*60*60*1000).toISOString().slice(0,10);
   const monthNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const sesTypes=['Hipertrofia','Fuerza Máx.','Potencia','Aeróbica','Técnica'];
