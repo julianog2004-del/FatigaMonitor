@@ -341,19 +341,19 @@
     </div>
     <button class="btn btn-primary btn-full btn-lg" onclick="doLogin()"><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</button>
     <div class="demo-accounts">
-      <p>Cuentas de demostración:</p>
+      <p>Cuentas de demostración — Entrenadores:</p>
       <div class="demo-btns">
-        <button class="demo-btn role-coach" onclick="quickLogin('coach@fatiga.es','coach123')">
+        <button class="demo-btn role-coach" onclick="quickLogin('coach1@fatiga.es','coach123')">
           <div class="ri"><i class="fas fa-clipboard-check"></i></div>
-          <div><div class="nm">Julián Orejas (Entrenador)</div><div class="cr">coach@fatiga.es / coach123</div></div>
+          <div><div class="nm">Julián Orejas (Entrenador 1)</div><div class="cr">coach1@fatiga.es / coach123</div></div>
         </button>
-        <button class="demo-btn role-athlete" onclick="quickLogin('carlos@fatiga.es','atleta123')">
-          <div class="ri"><i class="fas fa-running"></i></div>
-          <div><div class="nm">Carlos Martínez (Atleta)</div><div class="cr">carlos@fatiga.es / atleta123</div></div>
+        <button class="demo-btn role-coach" onclick="quickLogin('coach2@fatiga.es','coach123')">
+          <div class="ri"><i class="fas fa-clipboard-check"></i></div>
+          <div><div class="nm">Marta Ruiz (Entrenador 2)</div><div class="cr">coach2@fatiga.es / coach123</div></div>
         </button>
-        <button class="demo-btn role-athlete" onclick="quickLogin('diego@fatiga.es','atleta123')">
-          <div class="ri"><i class="fas fa-running"></i></div>
-          <div><div class="nm">Diego López (Atleta - Alerta)</div><div class="cr">diego@fatiga.es / atleta123</div></div>
+        <button class="demo-btn role-coach" onclick="quickLogin('coach3@fatiga.es','coach123')">
+          <div class="ri"><i class="fas fa-clipboard-check"></i></div>
+          <div><div class="nm">Alex Pérez (Entrenador 3)</div><div class="cr">coach3@fatiga.es / coach123</div></div>
         </button>
       </div>
     </div>
@@ -400,7 +400,7 @@ let DB = { users:[], athletes:[], sessions:[], wellness:[], cmj:[], reports:[], 
 let CLIPBOARD = { type: null, data: null }; // For copy/paste sessions
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 4; // Bump this when data model changes
+const DB_VERSION = 5; // Bump this when data model changes
 function save(){ localStorage.setItem('fm_db', JSON.stringify(DB)); localStorage.setItem('fm_db_version', DB_VERSION); }
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
@@ -413,15 +413,17 @@ function load(){
 // ===== SEED SAMPLE DATA =====
 function seed(){
   DB.users = [
-    {id:1, name:'Julián Orejas', email:'coach@fatiga.es', pass:'coach123', type:'coach'},
-    {id:2, name:'Carlos Martínez', email:'carlos@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
-    {id:3, name:'Ana García', email:'ana@fatiga.es', pass:'atleta123', type:'athlete', athleteId:2},
-    {id:4, name:'Diego López', email:'diego@fatiga.es', pass:'atleta123', type:'athlete', athleteId:3}
+    {id:1, name:'Julián Orejas', email:'coach1@fatiga.es', pass:'coach123', type:'coach'},
+    {id:2, name:'Marta Ruiz',    email:'coach2@fatiga.es', pass:'coach123', type:'coach'},
+    {id:3, name:'Alex Pérez',    email:'coach3@fatiga.es', pass:'coach123', type:'coach'},
+    {id:4, name:'Carlos Martínez', email:'carlos@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
+    {id:5, name:'Ana García',      email:'ana@fatiga.es',    pass:'atleta123', type:'athlete', athleteId:2},
+    {id:6, name:'Diego López',     email:'diego@fatiga.es',  pass:'atleta123', type:'athlete', athleteId:3}
   ];
   DB.athletes = [
-    {id:1, userId:2, name:'Carlos Martínez', sport:'Entrenamiento de Fuerza', age:24, weight:82, height:180, cmjBase:42, coachId:1, photo:'CM'},
-    {id:2, userId:3, name:'Ana García', sport:'Powerlifting', age:22, weight:62, height:165, cmjBase:35, coachId:1, photo:'AG'},
-    {id:3, userId:4, name:'Diego López', sport:'CrossFit', age:28, weight:78, height:175, cmjBase:48, coachId:1, photo:'DL'}
+    {id:1, userId:4, name:'Carlos Martínez', sport:'Entrenamiento de Fuerza', age:24, weight:82, height:180, cmjBase:42, coachId:1, photo:'CM'},
+    {id:2, userId:5, name:'Ana García',      sport:'Powerlifting',            age:22, weight:62, height:165, cmjBase:35, coachId:2, photo:'AG'},
+    {id:3, userId:6, name:'Diego López',     sport:'CrossFit',                age:28, weight:78, height:175, cmjBase:48, coachId:3, photo:'DL'}
   ];
 
   // Generate 8 weeks of training data
@@ -540,7 +542,7 @@ function seed(){
     ].map(p=>({...p, total:p.pressBanca+p.sentadilla+p.pesoMuerto+p.cmj}));
 
     return {
-      id:uid(), athleteId:a.id, coachId:1,
+      id:uid(), athleteId:a.id, coachId:a.coachId,
       name:`Macrociclo ${a.name}`,
       title:`Macrociclo de ${a.sport} — Etapa de especialización`,
       startDate:planStart, endDate:planEnd,
@@ -556,20 +558,27 @@ function seed(){
     };
   });
 
-  // Create sample reports
+  // Create sample reports (one per coach, each about their own athlete)
   DB.reports.push({
-    id:uid(), athleteId:3, coachId:1, type:'weekly',
+    id:uid(), athleteId:3, coachId:DB.athletes.find(a=>a.id===3).coachId, type:'weekly',
     title:'Informe Semanal — Alerta de Sobreentrenamiento',
     dateFrom:daysAgo(12), dateTo:daysAgo(6),
     createdAt:daysAgo(7), viewed:false,
     content:'Se detectan signos de fatiga acumulada. El CMJ ha descendido un 20% respecto al baseline y el Wellness Score promedio de la semana es 2.0/5. Se recomienda descarga inmediata: reducir volumen 40-60%, mantener intensidad alta, y reevaluar en 5-7 días.'
   });
   DB.reports.push({
-    id:uid(), athleteId:1, coachId:1, type:'weekly',
+    id:uid(), athleteId:1, coachId:DB.athletes.find(a=>a.id===1).coachId, type:'weekly',
     title:'Informe Semanal — Microciclo de Choque',
     dateFrom:daysAgo(12), dateTo:daysAgo(6),
     createdAt:daysAgo(8), viewed:true,
     content:'Carlos ha completado un microciclo de choque con carga normalizada de 24/25. El ratio aguda/crónica se sitúa en zona amarilla (1.33). El Wellness muestra fatiga moderada (3.1/5). Se recomienda transición a microciclo de restablecimiento la próxima semana.'
+  });
+  DB.reports.push({
+    id:uid(), athleteId:2, coachId:DB.athletes.find(a=>a.id===2).coachId, type:'weekly',
+    title:'Informe Semanal — Progresión Estable',
+    dateFrom:daysAgo(12), dateTo:daysAgo(6),
+    createdAt:daysAgo(6), viewed:false,
+    content:'Ana mantiene un nivel de wellness estable (4.1/5) y CMJ dentro del rango esperado respecto al baseline. La carga semanal se mantiene en zona óptima. Se recomienda continuar con el microciclo actual sin ajustes.'
   });
 
   save();

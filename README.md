@@ -54,10 +54,29 @@ npx serve .
 
 Y abrir `http://localhost:3000`.
 
+## Enlace en vivo
+
+🔗 **https://julianog2004-del.github.io/FatigaMonitor/**
+
+Cualquier persona con el enlace puede acceder directamente, registrarse con cualquiera de las 3 cuentas de entrenador (o crear su propio atleta) y todos sus datos se guardarán en el `localStorage` de su propio navegador. Cada dispositivo/navegador tiene su propia copia independiente de los datos.
+
 ## Usuarios de prueba
 
-- **Entrenador**: `coach@fatiga.es` / `coach123`
-- **Atleta**: `atleta@fatiga.es` / `atleta123`
+### Entrenadores (contraseña común: `coach123`)
+
+| Entrenador | Email | Atleta asignado |
+|---|---|---|
+| Julián Orejas | `coach1@fatiga.es` | Carlos Martínez — Entrenamiento de Fuerza |
+| Marta Ruiz | `coach2@fatiga.es` | Ana García — Powerlifting |
+| Alex Pérez | `coach3@fatiga.es` | Diego López — CrossFit |
+
+Cada entrenador ve **solo sus propios atletas** y puede crear nuevos atletas, planes, mesociclos, informes nutricionales y menús semanales. Todos los datos que crees quedan asociados a tu cuenta de entrenador y se guardan automáticamente en el navegador.
+
+### Atletas (contraseña común: `atleta123`)
+
+- `carlos@fatiga.es` — Carlos Martínez (atleta de coach1)
+- `ana@fatiga.es` — Ana García (atleta de coach2)
+- `diego@fatiga.es` — Diego López (atleta de coach3)
 
 ## Créditos
 
