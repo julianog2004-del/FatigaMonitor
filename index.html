@@ -417,8 +417,102 @@ let S = { user: null, view: '', params: {}, charts: {} };
 let DB = { users:[], athletes:[], sessions:[], wellness:[], cmj:[], reports:[], plans:[], nutritionReports:[], weeklyMenus:[] };
 let CLIPBOARD = { type: null, data: null }; // For copy/paste sessions
 
+// ===== PERFIL DEPORTIVO — TEORÍA DEL ENTRENAMIENTO =====
+// Categorías con énfasis (0..1) en cualidades físicas y plantilla de periodización recomendada
+const SPORT_CATEGORIES = {
+  'Fuerza': {
+    sports: ['Powerlifting','Halterofilia','Strongman','Entrenamiento de Fuerza','Culturismo'],
+    emphasis: {fmax:1.0, potencia:0.85, hipertrofia:0.75, resAerobica:0.25, resAnaerobica:0.5, tecnica:0.7},
+    defaultGoals: ['Fuerza máxima','Hipertrofia','Potencia'],
+    planTemplate: 'bloques',
+    peakTaperDays: 10
+  },
+  'Resistencia': {
+    sports: ['Running','Maratón','Trail','Ciclismo','Natación','Triatlón','Remo','Esquí de fondo'],
+    emphasis: {fmax:0.3, potencia:0.4, hipertrofia:0.2, resAerobica:1.0, resAnaerobica:0.7, tecnica:0.5},
+    defaultGoals: ['Resistencia aeróbica','Umbral anaeróbico'],
+    planTemplate: 'atr',
+    peakTaperDays: 21
+  },
+  'Equipo': {
+    sports: ['Fútbol','Baloncesto','Rugby','Balonmano','Voleibol','Hockey','Béisbol','Fútbol sala'],
+    emphasis: {fmax:0.6, potencia:0.9, hipertrofia:0.5, resAerobica:0.7, resAnaerobica:0.9, tecnica:0.9},
+    defaultGoals: ['Potencia','Resistencia anaeróbica','Técnica'],
+    planTemplate: 'tradicional',
+    peakTaperDays: 7
+  },
+  'Combate': {
+    sports: ['Boxeo','MMA','Judo','Karate','Taekwondo','Lucha','Jiu-Jitsu','Kickboxing'],
+    emphasis: {fmax:0.7, potencia:0.9, hipertrofia:0.55, resAerobica:0.6, resAnaerobica:1.0, tecnica:1.0},
+    defaultGoals: ['Potencia','Resistencia anaeróbica','Técnica'],
+    planTemplate: 'tradicional',
+    peakTaperDays: 10
+  },
+  'Velocidad': {
+    sports: ['Atletismo velocidad','Sprint','Vallas','Saltos','Lanzamientos'],
+    emphasis: {fmax:0.95, potencia:1.0, hipertrofia:0.6, resAerobica:0.2, resAnaerobica:0.8, tecnica:1.0},
+    defaultGoals: ['Potencia','Fuerza máxima','Técnica'],
+    planTemplate: 'bloques',
+    peakTaperDays: 14
+  },
+  'Técnico': {
+    sports: ['Gimnasia','Patinaje artístico','Escalada','Equitación','Natación sincronizada','Surf','Skate'],
+    emphasis: {fmax:0.5, potencia:0.75, hipertrofia:0.35, resAerobica:0.45, resAnaerobica:0.55, tecnica:1.0},
+    defaultGoals: ['Técnica','Fuerza explosivo-repetitiva'],
+    planTemplate: 'bloques',
+    peakTaperDays: 10
+  },
+  'Funcional': {
+    sports: ['CrossFit','HIIT','Calistenia','Hyrox','Functional Fitness'],
+    emphasis: {fmax:0.75, potencia:0.85, hipertrofia:0.65, resAerobica:0.75, resAnaerobica:0.85, tecnica:0.65},
+    defaultGoals: ['Potencia','Resistencia anaeróbica','Hipertrofia'],
+    planTemplate: 'tradicional',
+    peakTaperDays: 10
+  },
+  'Otro': {
+    sports: [],
+    emphasis: {fmax:0.6, potencia:0.6, hipertrofia:0.5, resAerobica:0.6, resAnaerobica:0.5, tecnica:0.6},
+    defaultGoals: ['Rendimiento general','Salud'],
+    planTemplate: 'tradicional',
+    peakTaperDays: 10
+  }
+};
+// Nivel del atleta → multiplicadores y patrón de microciclos por defecto
+const ATHLETE_LEVELS = {
+  'Iniciante':  {volMult:0.70, intMult:0.80, restMult:1.25, pattern:['gradual','corriente','corriente','restablecimiento'],  description:'0–1 años entrenando'},
+  'Intermedio': {volMult:1.00, intMult:1.00, restMult:1.00, pattern:['corriente','choque','corriente','restablecimiento'],   description:'1–3 años consistentes'},
+  'Avanzado':   {volMult:1.15, intMult:1.10, restMult:0.90, pattern:['corriente','choque','choque','restablecimiento'],      description:'3–6 años con progresión'},
+  'Elite':      {volMult:1.25, intMult:1.20, restMult:0.80, pattern:['choque','choque','aproximacion','restablecimiento'],   description:'Competidor con años de base'}
+};
+const ATHLETE_GOALS = [
+  'Fuerza máxima','Hipertrofia','Potencia','Velocidad',
+  'Resistencia aeróbica','Resistencia anaeróbica','Umbral anaeróbico',
+  'Rendimiento competitivo','Técnica','Prevención de lesiones','Rehabilitación','Salud general'
+];
+const COMPETITION_TYPES = [
+  'Campeonato nacional','Campeonato internacional','Liga regular',
+  'Torneo puntual','Copa eliminatoria','Exhibición','Marca personal','Competición benéfica'
+];
+// Helper: categoría inferida del deporte libre-texto
+function getSportCategory(sport){
+  if(!sport) return 'Otro';
+  const s = sport.toLowerCase().trim();
+  for(const [cat, def] of Object.entries(SPORT_CATEGORIES)){
+    if(def.sports.some(x => x.toLowerCase() === s)) return cat;
+  }
+  // fallback por palabras clave
+  if(/running|marat|trail|ciclismo|natac|triatl|remo|esqu/.test(s)) return 'Resistencia';
+  if(/boxeo|mma|judo|karate|taekwondo|lucha|jiu|kickbox/.test(s)) return 'Combate';
+  if(/f[úu]tbol|baloncesto|rugby|balonmano|voleibol|hockey|b[ée]isbol/.test(s)) return 'Equipo';
+  if(/gimnasia|patinaje|escalada|equitac|surf|skate/.test(s)) return 'Técnico';
+  if(/crossfit|hiit|calistenia|hyrox|funcional/.test(s)) return 'Funcional';
+  if(/powerlift|haltero|strongman|fuerza|culturismo/.test(s)) return 'Fuerza';
+  if(/sprint|velocidad|salto|lanzamiento|valla/.test(s)) return 'Velocidad';
+  return 'Otro';
+}
+
 // ===== PERSISTENCE =====
-const DB_VERSION = 6; // Bump this when data model changes
+const DB_VERSION = 7; // Bump this when data model changes — v7: campos de perfil deportivo del atleta
 function save(){ localStorage.setItem('fm_db', JSON.stringify(DB)); localStorage.setItem('fm_db_version', DB_VERSION); }
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
@@ -438,10 +532,19 @@ function seed(){
     {id:5, name:'Ana García',      email:'ana@fatiga.es',    pass:'atleta123', type:'athlete', athleteId:2},
     {id:6, name:'Diego López',     email:'diego@fatiga.es',  pass:'atleta123', type:'athlete', athleteId:3}
   ];
+  // Fechas de competición ancladas al año actual para que los picks caigan en meses reales
+  const _thisYear = new Date().getFullYear();
+  const _compDate = (m, d) => `${_thisYear}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   DB.athletes = [
-    {id:1, userId:4, name:'Carlos Martínez', sport:'Entrenamiento de Fuerza', age:24, weight:82, height:180, cmjBase:42, coachId:1, photo:'CM'},
-    {id:2, userId:5, name:'Ana García',      sport:'Powerlifting',            age:22, weight:62, height:165, cmjBase:35, coachId:2, photo:'AG'},
-    {id:3, userId:6, name:'Diego López',     sport:'CrossFit',                age:28, weight:78, height:175, cmjBase:48, coachId:3, photo:'DL'}
+    {id:1, userId:4, name:'Carlos Martínez', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',     age:24, weight:82, height:180, cmjBase:42, coachId:1, photo:'CM',
+     level:'Avanzado',   goals:['Fuerza máxima','Hipertrofia','Potencia'],
+     competitionDates:[_compDate(6,14), _compDate(10,25)], competitionType:'Campeonato nacional'},
+    {id:2, userId:5, name:'Ana García',      sport:'Powerlifting',            sportCategory:'Fuerza',     age:22, weight:62, height:165, cmjBase:35, coachId:2, photo:'AG',
+     level:'Intermedio', goals:['Fuerza máxima','Potencia','Técnica'],
+     competitionDates:[_compDate(5,10), _compDate(9,20)], competitionType:'Campeonato nacional'},
+    {id:3, userId:6, name:'Diego López',     sport:'CrossFit',                sportCategory:'Funcional',  age:28, weight:78, height:175, cmjBase:48, coachId:3, photo:'DL',
+     level:'Elite',      goals:['Potencia','Resistencia anaeróbica','Hipertrofia'],
+     competitionDates:[_compDate(4,12), _compDate(7,18), _compDate(11,8)], competitionType:'Torneo puntual'}
   ];
 
   // Generate 8 weeks of training data
@@ -6241,31 +6344,88 @@ function closeModal(){ document.getElementById('modalBox').classList.add('hidden
 
 // Add Athlete Modal
 function showAddAthleteModal(){
+  // Opciones de deportes agrupadas por categoría
+  const sportOptions = Object.entries(SPORT_CATEGORIES).map(([cat,def]) => {
+    if(!def.sports.length) return '';
+    return `<optgroup label="${cat}">${def.sports.map(s=>`<option value="${s}" data-cat="${cat}">${s}</option>`).join('')}</optgroup>`;
+  }).join('');
+  const levelOptions = Object.entries(ATHLETE_LEVELS).map(([lv,def]) =>
+    `<option value="${lv}">${lv} — ${def.description}</option>`).join('');
+  const goalChips = ATHLETE_GOALS.map((g,i) =>
+    `<label class="goal-chip" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;margin:2px;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer"><input type="checkbox" class="newAthGoal" value="${g}" style="margin:0"> ${g}</label>`).join('');
+  const compTypeOptions = COMPETITION_TYPES.map(c =>
+    `<option value="${c}">${c}</option>`).join('');
   showModal(`
     <div class="modal-hdr"><div class="modal-title">Nuevo Atleta</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
-    <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;font-family:var(--mono)">Solo el nombre es obligatorio. Puedes completar el resto más tarde.</p>
+    <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;font-family:var(--mono)">Solo el nombre es obligatorio. Los campos de perfil deportivo permiten adaptar el macrociclo a la teoría del entrenamiento.</p>
     <div class="form-group"><label>Nombre completo *</label><input type="text" id="newAthName" placeholder="Nombre Apellido"></div>
     <div class="grid-2">
-      <div class="form-group"><label>Deporte</label><input type="text" id="newAthSport" placeholder="Ej: Powerlifting (opcional)"></div>
-      <div class="form-group"><label>Edad</label><input type="number" id="newAthAge" placeholder="opcional"></div>
+      <div class="form-group"><label>Deporte</label>
+        <select id="newAthSport"><option value="">— Seleccionar —</option>${sportOptions}<option value="__otro">Otro / personalizado…</option></select>
+        <input type="text" id="newAthSportCustom" placeholder="Escribe el deporte" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group"><label>Edad</label><input type="number" id="newAthAge" placeholder="opcional" min="10" max="80"></div>
     </div>
     <div class="grid-3">
       <div class="form-group"><label>Peso (kg)</label><input type="number" id="newAthWeight" placeholder="opcional"></div>
       <div class="form-group"><label>Altura (cm)</label><input type="number" id="newAthHeight" placeholder="opcional"></div>
       <div class="form-group"><label>CMJ Baseline (cm)</label><input type="number" id="newAthCMJ" placeholder="opcional"></div>
     </div>
+    <div class="form-group"><label>Nivel del atleta</label>
+      <select id="newAthLevel"><option value="">— Seleccionar —</option>${levelOptions}</select>
+    </div>
+    <div class="form-group"><label>Objetivos de entrenamiento <span style="color:var(--muted);font-weight:normal">(selecciona varios)</span></label>
+      <div id="newAthGoalsBox" style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px">${goalChips}</div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Tipo de competición</label>
+        <select id="newAthCompType"><option value="">— Seleccionar —</option>${compTypeOptions}</select>
+      </div>
+      <div class="form-group"><label>Días de competición <span style="color:var(--muted);font-weight:normal">(fechas clave)</span></label>
+        <div id="newAthCompDates" style="display:flex;flex-direction:column;gap:4px"></div>
+        <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px;margin-top:4px" onclick="addCompDateRow()"><i class="fas fa-plus"></i> Añadir fecha</button>
+      </div>
+    </div>
     <div class="form-group"><label>Email (para acceso)</label><input type="email" id="newAthEmail" placeholder="opcional — se generará uno si lo dejas vacío"></div>
     <button class="btn btn-primary btn-full mt-16" onclick="addAthlete()"><i class="fas fa-plus"></i> Crear Atleta</button>
   `);
+  // Hook: mostrar input custom si eligen "Otro"
+  const sportSel = document.getElementById('newAthSport');
+  const sportCustom = document.getElementById('newAthSportCustom');
+  sportSel.addEventListener('change', () => {
+    sportCustom.style.display = sportSel.value === '__otro' ? 'block' : 'none';
+    // Auto-preseleccionar nivel y objetivos por defecto según la categoría del deporte
+    const selOpt = sportSel.options[sportSel.selectedIndex];
+    const cat = selOpt ? selOpt.dataset.cat : null;
+    if(cat && SPORT_CATEGORIES[cat]){
+      const defGoals = SPORT_CATEGORIES[cat].defaultGoals || [];
+      document.querySelectorAll('.newAthGoal').forEach(cb => { cb.checked = defGoals.includes(cb.value); });
+    }
+  });
+}
+
+// Añadir fila de fecha de competición en el modal de alta
+function addCompDateRow(preset){
+  const box = document.getElementById('newAthCompDates');
+  if(!box) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:4px;align-items:center';
+  row.innerHTML = `<input type="date" class="newAthCompDate" value="${preset||''}" style="flex:1"><button type="button" class="btn btn-secondary" style="padding:2px 8px" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
+  box.appendChild(row);
 }
 
 function addAthlete(){
   const name=document.getElementById('newAthName').value.trim();
-  const sport=document.getElementById('newAthSport').value.trim();
+  let sport=document.getElementById('newAthSport').value.trim();
+  if(sport==='__otro'){ sport = (document.getElementById('newAthSportCustom').value||'').trim(); }
   const age=parseInt(document.getElementById('newAthAge').value);
   const weight=parseInt(document.getElementById('newAthWeight').value);
   const height=parseInt(document.getElementById('newAthHeight').value);
   const cmjBase=parseFloat(document.getElementById('newAthCMJ').value);
+  const level = document.getElementById('newAthLevel').value || 'Intermedio';
+  const goals = Array.from(document.querySelectorAll('.newAthGoal:checked')).map(cb=>cb.value);
+  const competitionType = document.getElementById('newAthCompType').value || '';
+  const competitionDates = Array.from(document.querySelectorAll('.newAthCompDate')).map(i=>i.value).filter(Boolean).sort();
   let email=document.getElementById('newAthEmail').value.trim();
   if(!name){toast('Indica al menos el nombre del atleta','error');return;}
 
@@ -6273,53 +6433,157 @@ function addAthlete(){
   const userId = DB.users.length?Math.max(...DB.users.map(u=>u.id))+1:1;
   const initials = name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   if(!email){ const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'.').replace(/^\.|\.$/g,'')||'atleta'; email = `${slug}.${athId}@fatiga.local`; }
+  const sportCategory = getSportCategory(sport);
 
   DB.users.push({id:userId, name, email, pass:'atleta123', type:'athlete', athleteId:athId});
-  DB.athletes.push({id:athId, userId, name, sport:sport||'—', age:age||0, weight:weight||0, height:height||0, cmjBase:cmjBase||35, coachId:S.user.id, photo:initials});
-  const endDate = new Date(new Date(TODAY).getTime() + 365*24*60*60*1000).toISOString().slice(0,10);
+  DB.athletes.push({
+    id:athId, userId, name,
+    sport:sport||'—', sportCategory,
+    age:age||0, weight:weight||0, height:height||0, cmjBase:cmjBase||35,
+    coachId:S.user.id, photo:initials,
+    level, goals, competitionDates, competitionType
+  });
+
+  const plan = buildAdaptiveMacrociclo({
+    athId, coachId:S.user.id, name, sport, sportCategory,
+    level, goals, competitionDates, competitionType
+  });
+  DB.plans.push(plan);
+  save();
+  closeModal();
+  const adaptMsg = sportCategory!=='Otro' ? ` (${sportCategory}/${level})` : '';
+  toast(`Atleta ${name} creado con macrociclo adaptado${adaptMsg}`);
+  navigate(S.view);
+  renderSidebar();
+}
+
+// ===== MACROCICLO ADAPTATIVO — aplica teoría del entrenamiento al perfil deportivo =====
+// Distribuye etapas y microciclos alrededor de las fechas de competición, y escala volumen/intensidad por nivel.
+function buildAdaptiveMacrociclo({athId, coachId, name, sport, sportCategory, level, goals, competitionDates, competitionType}){
+  const cat = SPORT_CATEGORIES[sportCategory] || SPORT_CATEGORIES['Otro'];
+  const lvl = ATHLETE_LEVELS[level] || ATHLETE_LEVELS['Intermedio'];
   const monthNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const sesTypes=['Hipertrofia','Fuerza Máx.','Potencia','Aeróbica','Técnica'];
-  const newMesociclos = Array.from({length:12},(_,mi)=>({
-    num:mi+1, name:monthNames[mi],
-    microcycles: Array.from({length:4},(_,wi)=>({
-      weekNum:wi+1,
-      sessions: Array.from({length:7},(_,di)=>({
-        num:di+1, day:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][di],
-        type: di<5 ? sesTypes[di%5] : 'Descanso',
-        volume: di<5 ? 80 : 0,
-        intensity: di<5 ? 70 : 0
-      })),
-      observations:''
-    }))
+  const dayNames=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const startDate = TODAY;
+  const endDate = new Date(new Date(TODAY).getTime() + 365*24*60*60*1000).toISOString().slice(0,10);
+
+  // 1) Tipos de sesión priorizados por énfasis del deporte + objetivos del atleta
+  //    Cada objetivo refuerza 1-2 cualidades; la lista final mantiene las 5 más relevantes
+  const emph = {...cat.emphasis};
+  const goalBoost = {
+    'Fuerza máxima':{fmax:+0.2}, 'Hipertrofia':{hipertrofia:+0.25},
+    'Potencia':{potencia:+0.2}, 'Velocidad':{potencia:+0.15},
+    'Resistencia aeróbica':{resAerobica:+0.25}, 'Resistencia anaeróbica':{resAnaerobica:+0.25},
+    'Umbral anaeróbico':{resAerobica:+0.15, resAnaerobica:+0.15},
+    'Técnica':{tecnica:+0.2}, 'Rendimiento competitivo':{potencia:+0.1,fmax:+0.1},
+    'Prevención de lesiones':{tecnica:+0.15}, 'Rehabilitación':{tecnica:+0.2}, 'Salud general':{resAerobica:+0.1}
+  };
+  (goals||[]).forEach(g => { const b = goalBoost[g]||{}; for(const k in b) emph[k] = Math.min(1.3, (emph[k]||0) + b[k]); });
+  const qualityToSession = {fmax:'Fuerza Máx.', potencia:'Potencia', hipertrofia:'Hipertrofia', resAerobica:'Aeróbica', resAnaerobica:'Anaeróbica', tecnica:'Técnica'};
+  const ranked = Object.entries(emph).sort((a,b)=>b[1]-a[1]).map(([k])=>qualityToSession[k]);
+  const sesPriority = [...new Set(ranked)].slice(0,5);
+
+  // 2) Distribución semanal: 5 sesiones + 2 descansos (puede variar por nivel)
+  const sesPerWeek = level==='Iniciante' ? 4 : level==='Elite' ? 6 : 5;
+  const weeklySes = Array.from({length:7}, (_,di) => di < sesPerWeek ? sesPriority[di % sesPriority.length] : 'Descanso');
+
+  // 3) Mapeo de fechas de competición al número de semana (1..52)
+  const tStart = new Date(startDate).getTime();
+  const compWeeks = (competitionDates||[]).map(d => {
+    const t = new Date(d).getTime();
+    const w = Math.round((t - tStart)/(7*24*3600*1000)) + 1;
+    return w >= 1 && w <= 52 ? w : null;
+  }).filter(Boolean);
+
+  // 4) Generar las 52 semanas con periodización adaptativa
+  const weeks = Array.from({length:52}, (_,i) => {
+    const weekNum = i+1;
+    const mesociclo = Math.ceil(weekNum/4);
+    // ¿cerca de una competición?
+    const nearestComp = compWeeks.length ? compWeeks.reduce((best,cw) => Math.abs(cw-weekNum) < Math.abs(best-weekNum) ? cw : best, compWeeks[0]) : null;
+    const distToComp = nearestComp!=null ? nearestComp - weekNum : null;
+
+    let type = 'corriente', etapa = 'General', periodo = 'Preparatorio', targetLoad = 15, competition = false;
+    if(distToComp === 0){
+      type = 'competicion';     etapa = 'Competiciones';         periodo = 'Competitivo'; targetLoad = 12; competition = true;
+    } else if(distToComp != null && distToComp > 0 && distToComp <= 2){
+      type = 'aproximacion';    etapa = 'Estabilización';        periodo = 'Competitivo'; targetLoad = 17;
+    } else if(distToComp != null && distToComp < 0 && distToComp >= -1){
+      type = 'restablecimiento';etapa = 'Recuperación post-comp'; periodo = 'Transitorio'; targetLoad = 8;
+    } else {
+      // Planificación por fase general según mesociclo y patrón del nivel
+      const microPattern = lvl.pattern;
+      type = microPattern[(weekNum-1) % 4];
+      if(mesociclo <= 3){        etapa = 'Preparación General';    periodo = 'Preparatorio'; }
+      else if(mesociclo <= 6){   etapa = 'Preparación Específica'; periodo = 'Preparatorio'; }
+      else if(mesociclo <= 9){   etapa = 'Precompetitiva';         periodo = 'Competitivo'; }
+      else if(mesociclo <= 11){  etapa = 'Competitiva';            periodo = 'Competitivo'; }
+      else {                     etapa = 'Transición';             periodo = 'Transitorio'; }
+      targetLoad = type==='choque'?21 : type==='aproximacion'?17 : type==='gradual'?10 : type==='restablecimiento'?8 : 15;
+    }
+    // Escalado por nivel del atleta
+    targetLoad = Math.round(targetLoad * (type==='restablecimiento' ? lvl.restMult : lvl.volMult));
+    return {weekNum, type, targetLoad, mesociclo, etapa, periodo, competition, notes: competition ? `Competición: ${competitionType||'—'}` : ''};
+  });
+
+  // 5) Mesociclos (12) con microciclos (4) y sesiones diarias. Volumen/intensidad escalados.
+  const newMesociclos = Array.from({length:12}, (_,mi) => ({
+    num: mi+1, name: monthNames[mi],
+    microcycles: Array.from({length:4}, (_,wi) => {
+      const w = weeks[mi*4 + wi] || {type:'corriente'};
+      const volBase = w.type==='choque' ? 100 : w.type==='competicion' ? 60 : w.type==='restablecimiento' ? 50 : w.type==='aproximacion' ? 85 : w.type==='gradual' ? 60 : 80;
+      const intBase = w.type==='choque' ? 85 : w.type==='competicion' ? 95 : w.type==='restablecimiento' ? 55 : w.type==='aproximacion' ? 80 : w.type==='gradual' ? 60 : 70;
+      return {
+        weekNum: wi+1,
+        sessions: Array.from({length:7}, (_,di) => ({
+          num: di+1, day: dayNames[di],
+          type: weeklySes[di],
+          volume: weeklySes[di]==='Descanso' ? 0 : Math.round(volBase * lvl.volMult),
+          intensity: weeklySes[di]==='Descanso' ? 0 : Math.round(intBase * lvl.intMult)
+        })),
+        observations: w.competition ? `Semana de competición (${competitionType||'—'})` : ''
+      };
+    })
   }));
-  const newEvaluations = Array.from({length:12},(_,i)=>({
+
+  const newEvaluations = Array.from({length:12}, (_,i) => ({
     num:i+1, date:'', peso:0, grasa:0, masaMuscular:0, biceps:0, pecho:0, cintura:0, cadera:0, muslo:0, gemelo:0, observations:''
   }));
-  // Pre-generate detailedSessions for all meso-micro combinations
   const newDetailedSessions = {};
   newMesociclos.forEach(m => {
-    m.microcycles.forEach((mc,wi) => {
-      newDetailedSessions[`${m.num}-${wi+1}`] = Array.from({length:7},(_,si)=>({
-        num:si+1,
-        exercises: Array.from({length:7},()=>({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),
+    m.microcycles.forEach((mc, wi) => {
+      newDetailedSessions[`${m.num}-${wi+1}`] = Array.from({length:7}, (_,si) => ({
+        num: si+1,
+        exercises: Array.from({length:7}, () => ({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),
         observations:'', volume:''
       }));
     });
   });
-  DB.plans.push({
-    id:uid(), athleteId:athId, coachId:S.user.id, name:`Macrociclo ${name}`, title:`Macrociclo de ${sport}`,
-    sport, startDate:TODAY, endDate,
-    schedule:{lunes:sport,martes:'Potencia',miercoles:'Aeróbica',jueves:sport,viernes:'Técnica',sabado:'—',domingo:'—'},
-    objectives:[`Mejorar rendimiento en ${sport}`,'Mantener salud y prevenir lesiones',''],
-    observations:'',
-    weeks:Array.from({length:52},(_,i)=>({weekNum:i+1, type:i%4===3?'restablecimiento':'corriente', targetLoad:i%4===2?18:i%4===3?10:15, mesociclo:Math.ceil((i+1)/4), etapa:i<13?'General':i<26?'Específica':i<39?'Competitiva':'Transición', periodo:i<26?'Preparatorio':i<42?'Competitivo':'Transitorio', competition:false, notes:''})),
-    mesociclos:newMesociclos, evaluations:newEvaluations, progress:[], detailedSessions:newDetailedSessions
-  });
-  save();
-  closeModal();
-  toast(`Atleta ${name} creado con macrociclo`);
-  navigate(S.view);
-  renderSidebar();
+
+  // 6) Objetivos del plan: del atleta + refuerzos por categoría deportiva
+  const planObjectives = [
+    ...(goals && goals.length ? goals : cat.defaultGoals).slice(0,3),
+    ...(competitionDates && competitionDates.length ? [`${competitionDates.length} competición(es) planificada(s)`] : [])
+  ].slice(0,4);
+  while(planObjectives.length < 3) planObjectives.push('');
+
+  return {
+    id: uid(), athleteId: athId, coachId,
+    name: `Macrociclo ${name}`,
+    title: `Macrociclo de ${sport||'entrenamiento'} — ${sportCategory}/${level}`,
+    sport,
+    sportCategory, level, goals,
+    competitionDates, competitionType,
+    macroType: cat.planTemplate,
+    startDate, endDate,
+    schedule: {
+      lunes: weeklySes[0], martes: weeklySes[1], miercoles: weeklySes[2],
+      jueves: weeklySes[3], viernes: weeklySes[4], sabado: weeklySes[5], domingo: weeklySes[6]
+    },
+    objectives: planObjectives,
+    observations: `Plantilla ${cat.planTemplate} · ${sesPerWeek} sesiones/sem · volumen ×${lvl.volMult} · intensidad ×${lvl.intMult}`,
+    weeks, mesociclos: newMesociclos, evaluations: newEvaluations, progress: [], detailedSessions: newDetailedSessions
+  };
 }
 
 // Delete Athlete
