@@ -12,6 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root{--bg:#F5F0E8;--bg2:#EDE7DC;--card:#FDFBF7;--card2:#F8F4ED;--border:#D6CCBA;--primary:#8B7340;--primary-d:#6B5730;--primary-l:#A6894E;--accent:#5B4F8A;--accent-alt:#7B6EAA;--text:#2C2418;--muted:#8A7E6B;--ok:#4A7A5A;--warn:#9E8035;--danger:#A04040;--side-w:250px;--serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;--mono:'DM Mono','Fira Code',monospace;--sans:'Inter',system-ui,sans-serif}
     *{margin:0;padding:0;box-sizing:border-box}
@@ -1647,6 +1649,8 @@ function viewMacrociclo(){
         <button class="btn btn-primary btn-sm" onclick="showAddWeeksModal(${selAth})"><i class="fas fa-plus"></i> Añadir Semanas</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMesoModal(${selAth})"><i class="fas fa-plus"></i> Mesociclo</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMacroModal(${selAth})"><i class="fas fa-sync-alt"></i> Nuevo Macrociclo</button>
+        <button class="btn btn-secondary btn-sm" onclick="showExportExcelModal(${selAth})" title="Exportar a Excel"><i class="fas fa-file-excel"></i> Exportar</button>
+        <button class="btn btn-sm" style="background:var(--danger);color:#fff;border-color:var(--danger)" onclick="confirmDeleteMacrociclo(${selAth})" title="Eliminar macrociclo"><i class="fas fa-trash"></i> Eliminar</button>
       </div>
     </div>
     <div class="pg-body">
@@ -6092,6 +6096,238 @@ function deleteMesociclo(athId, mesoIdx){
   // Renumber
   plan.mesociclos.forEach((m,i)=>{m.num=i+1;});
   save(); toast('Mesociclo eliminado'); navigate('coach-mesociclo',{planAthlete:athId});
+}
+
+// ===== ELIMINAR MACROCICLO COMPLETO =====
+function confirmDeleteMacrociclo(athId){
+  const ath = getAthleteById(athId);
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan||!ath){ toast('No hay macrociclo para eliminar','error'); return; }
+  const nMeso = (plan.mesociclos||[]).length;
+  const nWeeks = (plan.weeks||[]).length;
+  showModal(`
+    <div class="modal-hdr"><div class="modal-title">Eliminar Macrociclo</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <div style="text-align:center;padding:16px 0">
+      <i class="fas fa-exclamation-triangle" style="font-size:40px;color:var(--danger);margin-bottom:16px"></i>
+      <p style="font-size:15px;margin-bottom:8px">¿Eliminar el macrociclo de <strong>${ath.name}</strong>?</p>
+      <p style="font-size:12px;color:var(--muted);line-height:1.5">Se eliminarán <strong>${nMeso} mesociclos</strong>, <strong>${nWeeks} semanas</strong>, evaluaciones y sesiones detalladas.<br>Esta acción no se puede deshacer.<br><span style="color:var(--warn)">Los registros de sesiones, CMJ y wellness no se verán afectados.</span></p>
+    </div>
+    <div class="flex gap-8" style="justify-content:center">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn" style="background:var(--danger);color:#fff" onclick="deleteMacrociclo(${athId})"><i class="fas fa-trash"></i> Eliminar macrociclo</button>
+    </div>
+  `);
+}
+function deleteMacrociclo(athId){
+  const ath = getAthleteById(athId);
+  DB.plans = DB.plans.filter(p => p.athleteId !== athId);
+  save();
+  closeModal();
+  toast(`Macrociclo de ${ath?ath.name:'atleta'} eliminado`);
+  navigate('coach-macrociclo',{planAthlete:athId});
+}
+
+// ===== EXPORTAR MACROCICLO A EXCEL =====
+function showExportExcelModal(athId){
+  const ath = getAthleteById(athId);
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan||!ath){ toast('No hay macrociclo para exportar','error'); return; }
+  if(typeof XLSX === 'undefined'){ toast('Librería XLSX no cargada. Comprueba tu conexión.','error'); return; }
+  // Contar datos disponibles
+  const nWeeks = (plan.weeks||[]).length;
+  const nMeso = (plan.mesociclos||[]).length;
+  const nMicros = (plan.mesociclos||[]).reduce((s,m) => s + (m.microcycles||[]).length, 0);
+  const nSessions = nMicros * 7;
+  const dsKeys = plan.detailedSessions ? Object.keys(plan.detailedSessions) : [];
+  const nDetailed = dsKeys.reduce((s,k) => {
+    const arr = plan.detailedSessions[k] || [];
+    return s + arr.reduce((ss, ses) => ss + (ses.exercises||[]).filter(e=>e.name).length, 0);
+  }, 0);
+  const nEvals = (plan.evaluations||[]).filter(e=>e.date||e.peso).length;
+  showModal(`
+    <div class="modal-hdr"><div class="modal-title">Exportar a Excel</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <p style="font-size:12px;color:var(--muted);margin:-4px 0 14px">Selecciona las hojas que quieres incluir en el archivo Excel. Cada opción genera una hoja separada.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="resumen" checked>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Resumen</div><div style="font-size:11px;color:var(--muted)">Perfil del atleta · objetivos · fechas de competición · periodización</div></div>
+      </label>
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="macrociclo" checked>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Macrociclo (52 semanas)</div><div style="font-size:11px;color:var(--muted)">${nWeeks} semanas · tipo · carga · mesociclo · etapa · período · competición</div></div>
+      </label>
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="mesociclos" checked>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Mesociclos</div><div style="font-size:11px;color:var(--muted)">${nMeso} mesociclos · tipo predominante · carga media · observaciones</div></div>
+      </label>
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="microciclos" checked>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Microciclos y Sesiones</div><div style="font-size:11px;color:var(--muted)">${nSessions} sesiones · día · tipo · volumen · intensidad</div></div>
+      </label>
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="detalladas" ${nDetailed?'checked':''} ${nDetailed?'':'disabled'}>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Sesiones detalladas ${nDetailed?'':'<span style=\"color:var(--muted);font-weight:normal\">(sin datos)</span>'}</div><div style="font-size:11px;color:var(--muted)">${nDetailed} ejercicio(s) con kg · series · RIR · descanso</div></div>
+      </label>
+      <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
+        <input type="checkbox" class="exportOpt" value="evaluaciones" ${nEvals?'checked':''} ${nEvals?'':'disabled'}>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Evaluaciones ${nEvals?'':'<span style=\"color:var(--muted);font-weight:normal\">(sin datos)</span>'}</div><div style="font-size:11px;color:var(--muted)">${nEvals} evaluación(es) · composición corporal · medidas</div></div>
+      </label>
+    </div>
+    <div class="flex gap-8 mt-16" style="justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="exportMacrocicloToExcel(${athId})"><i class="fas fa-download"></i> Descargar .xlsx</button>
+    </div>
+  `);
+}
+
+function exportMacrocicloToExcel(athId){
+  const ath = getAthleteById(athId);
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan||!ath){ toast('No se pudo exportar','error'); return; }
+  if(typeof XLSX === 'undefined'){ toast('Librería XLSX no cargada','error'); return; }
+  const opts = Array.from(document.querySelectorAll('.exportOpt:checked')).map(cb=>cb.value);
+  if(!opts.length){ toast('Selecciona al menos una hoja','error'); return; }
+
+  const wb = XLSX.utils.book_new();
+  // Helper: crea una worksheet desde array-of-arrays y ajusta anchos
+  const addSheet = (rows, name, colWidths) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    if(colWidths) ws['!cols'] = colWidths.map(w => ({wch:w}));
+    // Congelar primera fila como cabecera
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{c:0,r:0}, e:{c:(rows[0]||[]).length-1, r:Math.max(0, rows.length-1)}})};
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31));
+  };
+
+  // 1) Resumen
+  if(opts.includes('resumen')){
+    const coach = DB.users.find(u=>u.id===ath.coachId);
+    const rows = [
+      ['FATIGAMONITOR — RESUMEN DEL MACROCICLO'],
+      ['Generado', new Date().toLocaleString('es-ES')],
+      [],
+      ['ATLETA'],
+      ['Nombre', ath.name],
+      ['Edad', ath.age||'—'],
+      ['Peso (kg)', ath.weight||'—'],
+      ['Altura (cm)', ath.height||'—'],
+      ['CMJ baseline (cm)', ath.cmjBase||'—'],
+      ['Deporte', ath.sport||'—'],
+      ['Categoría deportiva', ath.sportCategory||plan.sportCategory||'—'],
+      ['Nivel', ath.level||plan.level||'—'],
+      ['Objetivos', (ath.goals||plan.goals||[]).join(' · ')||'—'],
+      ['Tipo de competición', ath.competitionType||plan.competitionType||'—'],
+      ['Fechas de competición', (ath.competitionDates||plan.competitionDates||[]).join(' · ')||'—'],
+      ['Entrenador', coach?coach.name:'—'],
+      [],
+      ['MACROCICLO'],
+      ['Título', plan.title||plan.name||'—'],
+      ['Tipo de periodización', plan.macroType||'—'],
+      ['Fecha inicio', plan.startDate||'—'],
+      ['Fecha fin', plan.endDate||'—'],
+      ['Número de semanas', (plan.weeks||[]).length],
+      ['Número de mesociclos', (plan.mesociclos||[]).length],
+      ['Observaciones del plan', plan.observations||'—'],
+      [],
+      ['OBJETIVOS DEL PLAN'],
+      ...(plan.objectives||[]).filter(Boolean).map((o,i)=>[`${i+1}.`, o]),
+      [],
+      ['HORARIO SEMANAL'],
+      ['Lunes', plan.schedule&&plan.schedule.lunes||'—'],
+      ['Martes', plan.schedule&&plan.schedule.martes||'—'],
+      ['Miércoles', plan.schedule&&plan.schedule.miercoles||'—'],
+      ['Jueves', plan.schedule&&plan.schedule.jueves||'—'],
+      ['Viernes', plan.schedule&&plan.schedule.viernes||'—'],
+      ['Sábado', plan.schedule&&plan.schedule.sabado||'—'],
+      ['Domingo', plan.schedule&&plan.schedule.domingo||'—']
+    ];
+    addSheet(rows, 'Resumen', [24, 60]);
+  }
+
+  // 2) Macrociclo — 52 semanas
+  if(opts.includes('macrociclo') && plan.weeks && plan.weeks.length){
+    const header = ['Sem','Fecha inicio','Mesociclo','Etapa','Período','Tipo microciclo','Carga objetivo','Competición','Notas'];
+    const startT = new Date(plan.startDate).getTime();
+    const rows = [header, ...plan.weeks.map((w,i) => {
+      const wStart = new Date(startT + i*7*24*3600*1000).toISOString().slice(0,10);
+      return [w.weekNum, wStart, w.mesociclo||'', w.etapa||'', w.periodo||'', w.type||'', w.targetLoad||0, w.competition?'Sí':'', w.notes||''];
+    })];
+    addSheet(rows, 'Macrociclo', [6, 13, 11, 22, 14, 16, 9, 13, 30]);
+  }
+
+  // 3) Mesociclos
+  if(opts.includes('mesociclos') && plan.mesociclos && plan.mesociclos.length){
+    const header = ['Nº','Nombre','Nº microciclos','Tipos de microciclo','Carga media','Sesiones/sem','Observación'];
+    const rows = [header, ...plan.mesociclos.map(m => {
+      const types = [...new Set((m.microcycles||[]).map((mc,wi)=>{
+        const globalWeek = ((m.num-1)*4) + wi;
+        return plan.weeks && plan.weeks[globalWeek] ? plan.weeks[globalWeek].type : '';
+      }).filter(Boolean))].join(' / ');
+      const loads = (m.microcycles||[]).map((_,wi)=>{
+        const gw = ((m.num-1)*4)+wi;
+        return plan.weeks && plan.weeks[gw] ? (plan.weeks[gw].targetLoad||0) : 0;
+      });
+      const avgLoad = loads.length ? +(loads.reduce((s,x)=>s+x,0)/loads.length).toFixed(1) : 0;
+      const sesPerWeek = ((m.microcycles||[])[0]?.sessions||[]).filter(s=>s.type&&s.type!=='Descanso').length;
+      const obs = (m.microcycles||[]).map(mc=>mc.observations).filter(Boolean).join(' | ')||'—';
+      return [m.num, m.name||'', (m.microcycles||[]).length, types||'—', avgLoad, sesPerWeek, obs];
+    })];
+    addSheet(rows, 'Mesociclos', [5, 16, 6, 30, 11, 12, 40]);
+  }
+
+  // 4) Microciclos y sesiones
+  if(opts.includes('microciclos') && plan.mesociclos && plan.mesociclos.length){
+    const header = ['Mesociclo','Mes','Microciclo','Semana (global)','Sesión','Día','Tipo','Volumen','Intensidad','Observación'];
+    const rows = [header];
+    plan.mesociclos.forEach(m => {
+      (m.microcycles||[]).forEach((mc, wi) => {
+        const globalWeek = ((m.num-1)*4) + wi + 1;
+        (mc.sessions||[]).forEach(s => {
+          rows.push([m.num, m.name||'', mc.weekNum||(wi+1), globalWeek, s.num, s.day||'', s.type||'', s.volume||0, s.intensity||0, mc.observations||'']);
+        });
+      });
+    });
+    addSheet(rows, 'Microciclos', [9, 12, 9, 14, 7, 6, 16, 9, 10, 40]);
+  }
+
+  // 5) Sesiones detalladas (ejercicios con kg/series/RIR)
+  if(opts.includes('detalladas') && plan.detailedSessions){
+    const header = ['Mesociclo','Microciclo','Sesión','Día','Ejercicio','Kg','Serie 1','Serie 2','Serie 3','Serie 4','RIR','Descanso','Vol. sesión','Obs. sesión'];
+    const rows = [header];
+    const dayLabels = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    Object.keys(plan.detailedSessions).sort((a,b)=>{
+      const [am,aw]=a.split('-').map(Number), [bm,bw]=b.split('-').map(Number);
+      return am!==bm ? am-bm : aw-bw;
+    }).forEach(key => {
+      const [mNum, wNum] = key.split('-').map(Number);
+      (plan.detailedSessions[key]||[]).forEach(ses => {
+        const dayLabel = dayLabels[(ses.num||1)-1] || '';
+        (ses.exercises||[]).filter(ex=>ex.name).forEach(ex => {
+          rows.push([mNum, wNum, ses.num, dayLabel, ex.name||'', ex.kg||'', ex.s1||'', ex.s2||'', ex.s3||'', ex.s4||'', ex.rir||'', ex.descanso||'', ses.volume||'', ses.observations||'']);
+        });
+      });
+    });
+    if(rows.length > 1) addSheet(rows, 'Sesiones detalladas', [9, 10, 7, 6, 26, 7, 8, 8, 8, 8, 6, 10, 11, 30]);
+  }
+
+  // 6) Evaluaciones
+  if(opts.includes('evaluaciones') && plan.evaluations && plan.evaluations.length){
+    const header = ['Nº','Fecha','Peso (kg)','Grasa (%)','Masa muscular (kg)','Bíceps (cm)','Pecho (cm)','Cintura (cm)','Cadera (cm)','Muslo (cm)','Gemelo (cm)','Observación'];
+    const rows = [header, ...plan.evaluations.map(e => [
+      e.num||'', e.date||'', e.peso||'', e.grasa||'', e.masaMuscular||'', e.biceps||'', e.pecho||'', e.cintura||'', e.cadera||'', e.muslo||'', e.gemelo||'', e.observations||''
+    ])];
+    addSheet(rows, 'Evaluaciones', [5, 12, 10, 10, 18, 11, 11, 11, 11, 11, 11, 35]);
+  }
+
+  if(wb.SheetNames.length === 0){ toast('No hay datos seleccionados para exportar','error'); return; }
+  const fname = `Macrociclo_${(ath.name||'atleta').replace(/[^a-zA-Z0-9]+/g,'_')}_${TODAY}.xlsx`;
+  try {
+    XLSX.writeFile(wb, fname);
+    closeModal();
+    toast(`Exportado: ${fname} (${wb.SheetNames.length} hoja${wb.SheetNames.length!==1?'s':''})`);
+  } catch(e){
+    toast('Error al generar Excel: '+e.message,'error');
+  }
 }
 
 // ===== RENAME MESOCICLO =====
