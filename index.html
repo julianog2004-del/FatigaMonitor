@@ -1619,10 +1619,11 @@ function viewMacrociclo(){
   if(!plan||!ath) return `<div class="pg-body"><div class="empty"><i class="fas fa-calendar-times"></i><p>No hay plan</p></div></div>`;
 
   const microColors = {gradual:'#2D7A5C',corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',aproximacion:'#C47820',control:'#7B6EAA'};
-  const currentWeek = Math.max(1, Math.ceil(diffDays(TODAY, plan.startDate)/7));
+  const hasWeeks = plan.weeks && plan.weeks.length > 0;
+  const currentWeek = hasWeeks ? Math.max(1, Math.ceil(diffDays(TODAY, plan.startDate)/7)) : 0;
   const cmjTrend = getCMJ30DayTrend(selAth);
   const st = getStatus(selAth);
-  const avgLoad = plan.weeks.reduce((s,w)=>s+w.targetLoad,0)/plan.weeks.length;
+  const avgLoad = hasWeeks ? plan.weeks.reduce((s,w)=>s+(w.targetLoad||0),0)/plan.weeks.length : 0;
 
   // Bar chart will be rendered via Chart.js in afterRender
 
@@ -1692,7 +1693,7 @@ function viewMacrociclo(){
 
       <!-- Stats + CMJ 30-Day Average -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr) 1.4fr;gap:16px" class="mb-24">
-        <div class="stat-card c-pri"><div class="st-icon pri"><i class="fas fa-calendar"></i></div><div class="st-val">${plan.weeks.length}</div><div class="st-label">Semanas Totales</div><div class="st-change up">Semana actual: ${currentWeek}</div></div>
+        <div class="stat-card c-pri"><div class="st-icon pri"><i class="fas fa-calendar"></i></div><div class="st-val">${plan.weeks.length}</div><div class="st-label">Semanas Totales</div><div class="st-change up">Semana actual: ${hasWeeks?currentWeek:'—'}</div></div>
         <div class="stat-card c-ok"><div class="st-icon ok"><i class="fas fa-redo"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='restablecimiento').length}</div><div class="st-label">Sem. Restablec. (R)</div></div>
         <div class="stat-card c-danger"><div class="st-icon danger"><i class="fas fa-bolt"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='choque').length}</div><div class="st-label">Sem. Choque (CH)</div></div>
         <div class="stat-card c-warn"><div class="st-icon warn"><i class="fas fa-trophy"></i></div><div class="st-val">${plan.weeks.filter(w=>w.type==='competicion').length}</div><div class="st-label">Sem. Comp. (CP)</div></div>
@@ -6110,7 +6111,7 @@ function confirmDeleteMacrociclo(athId){
     <div style="text-align:center;padding:16px 0">
       <i class="fas fa-eraser" style="font-size:40px;color:var(--warn);margin-bottom:16px"></i>
       <p style="font-size:15px;margin-bottom:8px">¿Vaciar el macrociclo de <strong>${ath.name}</strong>?</p>
-      <p style="font-size:12px;color:var(--muted);line-height:1.5">Se conservará la estructura (<strong>${nMeso} mesociclos</strong>, <strong>${nWeeks} semanas</strong>, sesiones y evaluaciones) pero <strong>sin datos</strong>, lista para rellenar manualmente.<br><span style="color:var(--warn)">Los registros de sesiones, CMJ y wellness no se verán afectados.</span><br><span style="color:var(--muted);font-size:11px">Esta acción no se puede deshacer.</span></p>
+      <p style="font-size:12px;color:var(--muted);line-height:1.5">Se borrarán <strong>${nWeeks} semanas</strong>, <strong>${nMeso} mesociclos</strong>, sesiones detalladas y evaluaciones. El atleta seguirá apareciendo en el selector del macrociclo para que puedas construirlo manualmente desde cero con los botones <em>Añadir Semanas</em> y <em>Mesociclo</em>.<br><span style="color:var(--warn)">Los registros de sesiones, CMJ y wellness no se verán afectados.</span><br><span style="color:var(--muted);font-size:11px">Esta acción no se puede deshacer.</span></p>
     </div>
     <div class="flex gap-8" style="justify-content:center">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -6122,67 +6123,29 @@ function deleteMacrociclo(athId){
   const ath = getAthleteById(athId);
   const plan = DB.plans.find(p => p.athleteId === athId);
   if(!plan){ toast('No hay macrociclo','error'); return; }
-  const dayNames = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
-  // Semanas: conservar weekNum y mesociclo; vaciar tipo, carga, etapa, periodo, competición, notas
-  plan.weeks = (plan.weeks||[]).map(w => ({
-    weekNum: w.weekNum,
-    type: '',
-    targetLoad: 0,
-    mesociclo: w.mesociclo,
-    etapa: '',
-    periodo: '',
-    competition: false,
-    notes: ''
-  }));
-
-  // Mesociclos: conservar num y nombre mes; vaciar datos de sesiones y observaciones
-  plan.mesociclos = (plan.mesociclos||[]).map(m => ({
-    num: m.num,
-    name: m.name || `Mes ${m.num}`,
-    microcycles: (m.microcycles||[]).map((mc, wi) => ({
-      weekNum: mc.weekNum || (wi+1),
-      sessions: (mc.sessions && mc.sessions.length ? mc.sessions : Array.from({length:7},(_,di)=>({num:di+1,day:dayNames[di]}))).map((s,di) => ({
-        num: s.num || (di+1),
-        day: s.day || dayNames[di],
-        type: '',
-        volume: 0,
-        intensity: 0
-      })),
-      observations: ''
-    }))
-  }));
-
-  // Evaluaciones: conservar número, vaciar datos
-  plan.evaluations = (plan.evaluations||[]).map(e => ({
-    num: e.num,
-    date: '', peso: 0, grasa: 0, masaMuscular: 0,
-    biceps: 0, pecho: 0, cintura: 0, cadera: 0, muslo: 0, gemelo: 0,
-    observations: ''
-  }));
-
-  // Sesiones detalladas: vaciar ejercicios pero conservar las claves
-  if(plan.detailedSessions){
-    Object.keys(plan.detailedSessions).forEach(k => {
-      plan.detailedSessions[k] = (plan.detailedSessions[k]||[]).map((ses,si) => ({
-        num: ses.num || (si+1),
-        exercises: Array.from({length:7}, () => ({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),
-        observations: '',
-        volume: ''
-      }));
-    });
-  }
+  // Reiniciar plan a estado vacío — mantener la entrada para que el atleta siga apareciendo
+  // en el selector, pero sin semanas/mesociclos/evaluaciones acumuladas.
+  plan.weeks = [];
+  plan.mesociclos = [];
+  plan.evaluations = [];
+  plan.detailedSessions = {};
 
   // Horario semanal: vaciar
   plan.schedule = {lunes:'',martes:'',miercoles:'',jueves:'',viernes:'',sabado:'',domingo:''};
 
-  // Nivel de plan: vaciar objetivos y observaciones (conservar title, startDate, endDate, sport)
+  // Objetivos y observaciones vacíos (conservar title, sport, macroType)
   plan.objectives = ['','',''];
   plan.observations = '';
 
+  // Reiniciar fechas a hoy — al añadir semanas, el endDate se calculará de nuevo
+  const today = new Date().toISOString().slice(0,10);
+  plan.startDate = today;
+  plan.endDate = today;
+
   save();
   closeModal();
-  toast(`Macrociclo de ${ath?ath.name:'atleta'} vaciado — listo para rellenar manualmente`);
+  toast(`Macrociclo de ${ath?ath.name:'atleta'} vaciado — usa "Añadir Semanas" para empezar de cero`);
   navigate('coach-macrociclo',{planAthlete:athId});
 }
 
