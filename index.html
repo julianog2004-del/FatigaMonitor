@@ -5727,28 +5727,306 @@ function viewAthReports(){
     </div>`;
 }
 
+// ===== CIENCIA DEL ENTRENAMIENTO — CONSTANTES Y HELPERS =====
+// Basado en "Planificación Deportiva Científica y Automatizada" (fisiología +
+// periodización + integración algorítmica). Cada categoría define el modelo
+// óptimo de periodización, la duración/volumen del taper antes de un pico
+// competitivo y la frecuencia de semanas de descarga.
+// NOTA: se llama SPORT_PERIODIZATION_MAP (no SPORT_CATEGORIES) para no
+// colisionar con el SPORT_CATEGORIES (capitalizado) usado por nutrición y
+// el perfil deportivo del atleta (línea ~424).
+const SPORT_PERIODIZATION_MAP = {
+  ciclico: {
+    label:'Cíclico (resistencia)',
+    examples:'Maratón, triatlón, natación, ciclismo, atletismo fondo',
+    defaultPeriodization:'atr',        // Bloques/ATR según PDF
+    altPeriodization:'tradicional',    // Tradicional-secuenciada para principiantes
+    taperWeeks:2, taperVolReduction:50, // Reducción exponencial 41-60%
+    peaksPerYear:2, deloadEveryWeeks:4
+  },
+  combate: {
+    label:'Combate',
+    examples:'Boxeo, MMA, judo, karate, taekwondo, lucha',
+    defaultPeriodization:'atr',
+    altPeriodization:'bloques',
+    taperWeeks:1, taperVolReduction:40,
+    peaksPerYear:3, deloadEveryWeeks:4
+  },
+  fuerza: {
+    label:'Fuerza',
+    examples:'Powerlifting, halterofilia, strongman',
+    defaultPeriodization:'bloques',
+    altPeriodization:'tradicional',
+    taperWeeks:2, taperVolReduction:50, // Strength taper 30-70%
+    peaksPerYear:2, deloadEveryWeeks:4
+  },
+  equipo: {
+    label:'Equipo / Liga',
+    examples:'Fútbol, baloncesto, balonmano, rugby, voleibol, hockey',
+    defaultPeriodization:'larga-tradicional',
+    altPeriodization:'larga-atr',
+    taperWeeks:1, taperVolReduction:30,
+    peaksPerYear:0, deloadEveryWeeks:6 // mantenimiento continuo
+  },
+  potencia_tecnica: {
+    label:'Potencia técnica',
+    examples:'Gimnasia, lanzadores, saltadores, velocistas',
+    defaultPeriodization:'bloques',
+    altPeriodization:'atr',
+    taperWeeks:2, taperVolReduction:50,
+    peaksPerYear:2, deloadEveryWeeks:4
+  },
+  funcional: {
+    label:'Funcional / Mixto',
+    examples:'CrossFit, HYROX, pentatlón moderno, aventura',
+    defaultPeriodization:'atr',
+    altPeriodization:'bloques',
+    taperWeeks:1, taperVolReduction:40,
+    peaksPerYear:3, deloadEveryWeeks:4
+  },
+  tecnico: {
+    label:'Técnico de precisión',
+    examples:'Tiro, arquería, hípica, vela, golf',
+    defaultPeriodization:'tradicional',
+    altPeriodization:'atr',
+    taperWeeks:1, taperVolReduction:40,
+    peaksPerYear:2, deloadEveryWeeks:6
+  }
+};
+
+// Perfil por nivel (Matveyev para principiantes → Bloques/ATR para élite)
+const LEVEL_PROFILE = {
+  principiante: {label:'Principiante',   mesoLen:4, deloadFactor:1.5, preferredModel:'tradicional', microCapLoad:18},
+  intermedio:   {label:'Intermedio',     mesoLen:4, deloadFactor:1.2, preferredModel:'tradicional', microCapLoad:21},
+  avanzado:     {label:'Avanzado',       mesoLen:4, deloadFactor:1.0, preferredModel:'atr',         microCapLoad:22},
+  elite:        {label:'Élite',          mesoLen:3, deloadFactor:0.8, preferredModel:'bloques',     microCapLoad:25}
+};
+
+// Tipos de competición dentro de un calendario anual
+// NOTA: se llama COMPETITION_PICO_TYPES (no COMPETITION_TYPES) para no
+// colisionar con el COMPETITION_TYPES (array de strings) del perfil del
+// atleta en la línea ~494.
+const COMPETITION_PICO_TYPES = {
+  pico:        {label:'Pico (objetivo principal)', taperFactor:1.0, emoji:'🏆'},
+  secundaria:  {label:'Secundaria',                 taperFactor:0.6, emoji:'🥈'},
+  test:        {label:'Test / preparatoria',        taperFactor:0.3, emoji:'⏱️'},
+  control:     {label:'Control sin taper',          taperFactor:0,   emoji:'📊'}
+};
+
+// Normaliza valores libres del atleta a claves internas
+function normalizeSportCategory(rawCategory, rawSport){
+  const k = ((rawCategory||'')+' '+(rawSport||'')).toLowerCase();
+  if(/fuerza|powerlift|haltero|strongman/.test(k)) return 'fuerza';
+  if(/cross|funcional|hyrox|pentatl/.test(k)) return 'funcional';
+  if(/futbol|fútbol|basket|balonmano|rugby|voleibol|hockey|equipo|liga/.test(k)) return 'equipo';
+  if(/boxeo|mma|judo|karate|taekwondo|lucha|combate/.test(k)) return 'combate';
+  if(/gimnasia|lanza|salto|velocidad|sprint/.test(k)) return 'potencia_tecnica';
+  if(/maratón|triat|nataci|ciclis|fondo|resistencia|corredor/.test(k)) return 'ciclico';
+  if(/tiro|arquer|hípica|vela|golf/.test(k)) return 'tecnico';
+  return 'ciclico'; // fallback genérico
+}
+function normalizeLevel(raw){
+  const k = (raw||'').toLowerCase();
+  if(/elite|élite|profesional/.test(k)) return 'elite';
+  if(/avanz/.test(k)) return 'avanzado';
+  if(/inter/.test(k)) return 'intermedio';
+  if(/princip|amateur|iniciado/.test(k)) return 'principiante';
+  return 'intermedio';
+}
+
+// Elige el modelo de periodización óptimo a partir del perfil completo
+function pickPeriodizationModel({category, level, nCompetitions, totalWeeks, sex}){
+  const cat = SPORT_PERIODIZATION_MAP[category] || SPORT_PERIODIZATION_MAP.ciclico;
+  const lvl = LEVEL_PROFILE[level] || LEVEL_PROFILE.intermedio;
+  // Principiantes: siempre tradicional
+  if(level==='principiante') return cat.label.includes('Equipo')?'larga-tradicional':'tradicional';
+  // Equipo: larga temporada
+  if(category==='equipo') return nCompetitions>=15 ? 'larga-atr' : 'larga-tradicional';
+  // Élite + fuerza/potencia: bloques
+  if(level==='elite' && (category==='fuerza'||category==='potencia_tecnica')) return 'bloques';
+  // Múltiples picos y resistencia: ATR
+  if(nCompetitions>=2 && (category==='ciclico'||category==='funcional'||category==='combate')) return 'atr';
+  // Solo 1-2 picos y nivel avanzado+: depende del deporte
+  if(nCompetitions<=2 && level!=='principiante'){
+    if(category==='fuerza'||category==='potencia_tecnica') return 'bloques';
+    if(category==='ciclico') return 'atr';
+  }
+  return cat.defaultPeriodization || lvl.preferredModel;
+}
+
+// Construye una secuencia de mesociclos a medida, con taper antes de cada pico
+// competitivo y descargas periódicas. Los microtipos siguen la teoría clásica:
+//  G  gradual         (10-12)
+//  C  corriente       (14-18)
+//  CH choque          (19-22)
+//  A  aproximación    (15-17)
+//  CP competición     (11-15, con isComp=1)
+//  R  restablecimiento (4-10)
+function buildAutoMesoDefs(profile){
+  const { startDate, competitions=[], level='intermedio', category='ciclico',
+          weeksUntilFirstComp, totalWeeks } = profile;
+  const cat = SPORT_PERIODIZATION_MAP[category] || SPORT_PERIODIZATION_MAP.ciclico;
+  const lvl = LEVEL_PROFILE[level] || LEVEL_PROFILE.intermedio;
+  const mesoLen = lvl.mesoLen; // 3 ó 4 semanas
+
+  // Ordenar competiciones por fecha
+  const comps = (competitions||[]).slice().filter(c=>c.date).sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Helper para construir un mesociclo estándar por "rol"
+  // Roles: acondicionamiento / general / especifico / preparatorio / taper / deload / competicion / transicion / acumulacion / transformacion / realizacion
+  const microByRole = {
+    acondicionamiento: mesoLen===4 ? [['gradual',10],['gradual',12],['corriente',14],['restablecimiento',8]] : [['gradual',10],['corriente',14],['restablecimiento',8]],
+    general:        mesoLen===4 ? [['corriente',14],['choque',19],['corriente',16],['restablecimiento',8]] : [['corriente',14],['choque',19],['restablecimiento',8]],
+    especifico:     mesoLen===4 ? [['corriente',15],['choque',21],['choque',19],['restablecimiento',8]] : [['choque',19],['choque',21],['restablecimiento',8]],
+    acumulacion:    mesoLen===4 ? [['corriente',16],['choque',21],['choque',21],['restablecimiento',8]] : [['corriente',16],['choque',21],['restablecimiento',8]],
+    transformacion: mesoLen===4 ? [['corriente',16],['choque',21],['aproximacion',17],['restablecimiento',8]] : [['choque',21],['aproximacion',17],['restablecimiento',8]],
+    realizacion:    [['aproximacion',17],['competicion',13,1],['competicion',11,1]],
+    preparatorio:   mesoLen===4 ? [['choque',19],['corriente',16],['aproximacion',17],['restablecimiento',8]] : [['choque',19],['aproximacion',17],['restablecimiento',8]],
+    transicion:     [['restablecimiento',8],['restablecimiento',6],['restablecimiento',4]],
+    deload:         [['restablecimiento',8],['restablecimiento',6]]
+  };
+
+  // Taper previo a competición pico: reduce volumen según taperVolReduction del deporte
+  // Mantiene intensidad. Duración según cat.taperWeeks.
+  function buildTaperMicros(taperFactor){
+    const w = Math.max(1, Math.round(cat.taperWeeks * taperFactor));
+    if(w<=0) return [];
+    if(w===1) return [['aproximacion',15]];
+    if(w===2) return [['aproximacion',17],['aproximacion',13]];
+    return [['aproximacion',17],['aproximacion',15],['aproximacion',13]];
+  }
+  function buildCompMicro(){ return [['competicion',13,1]]; }
+
+  const mesoDefs = [];
+  const addMeso = (name, type, role, periodo, etapa, objective) => {
+    mesoDefs.push({ name, type, objective, periodo, etapa, micro: microByRole[role].map(m=>[...m]) });
+  };
+
+  // === Estructura base según modelo ===
+  const model = profile.modelOverride || pickPeriodizationModel({category, level, nCompetitions:comps.length, totalWeeks, sex:profile.sex});
+
+  if(model==='bloques'){
+    // Bloques: intro + bloques fuerza/técnica alternados + competición
+    addMeso('Introductorio','introductorio','acondicionamiento','Preparatorio','Etapa Preparación Condicional','Acondicionamiento general / Técnica base');
+    addMeso('Bloque Fuerza 1','ms-fuerza','acumulacion','Preparatorio','Bloque Fuerza','Fuerza máxima / Potencia aeróbica');
+    addMeso('Bloque Técnica 1','ms-tecnica','transformacion','Preparatorio','Bloque Técnica','Fuerza explosivo-repetitiva / Técnica');
+    if(comps.length>=2){
+      addMeso('Bloque Fuerza 2','ms-fuerza','acumulacion','Preparatorio 2','Bloque Fuerza','Fuerza máxima / Potencia aeróbica');
+      addMeso('Bloque Técnica 2','ms-tecnica','transformacion','Preparatorio 2','Bloque Técnica','Fuerza explosivo-repetitiva / Técnica');
+    }
+  } else if(model==='atr' || model==='larga-atr'){
+    const nBlocks = Math.max(1, Math.min(4, comps.length||2));
+    for(let i=0;i<nBlocks;i++){
+      const tag = nBlocks>1?` ${i+1}`:'';
+      addMeso('Acumulación'+tag,'acumulacion','acumulacion',`Macrociclo ATR${tag}`,'Acumulación','Fuerza máxima / Potencia aeróbica');
+      addMeso('Transformación'+tag,'transformacion','transformacion',`Macrociclo ATR${tag}`,'Transformación','Fuerza repetitiva / Potencia específica');
+      addMeso('Realización'+tag,'realizacion','realizacion',`Macrociclo ATR${tag}`,'Realización','Velocidad / Ritmo competición');
+    }
+  } else if(model==='tradicional-doble'){
+    addMeso('Introductorio','introductorio','acondicionamiento','Preparatorio 1','Etapa Preparación General','Acondicionamiento general');
+    addMeso('BPG 1','bpg','general','Preparatorio 1','Etapa Preparación General','Fuerza general / Resistencia general');
+    addMeso('BPE 1','bpe','especifico','Preparatorio 1','Etapa Preparación Específica','Capacidad aeróbica / Fuerza resistencia');
+    addMeso('Preparatorio 1','preparatorio','preparatorio','Competiciones 1','Estabilización de la Forma','Ritmo competición');
+    addMeso('BPG 2','bpg','general','Preparatorio 2','Etapa Preparación General','Fuerza general / Resistencia general');
+    addMeso('BPE 2','bpe','especifico','Preparatorio 2','Etapa Preparación Específica','Capacidad aeróbica / Fuerza resistencia');
+    addMeso('Preparatorio 2','preparatorio','preparatorio','Competiciones 2','Estabilización de la Forma','Ritmo competición');
+  } else if(model==='larga-tradicional'){
+    addMeso('Introductorio','introductorio','acondicionamiento','Preparatorio','Etapa Preparación General','Acondicionamiento / Técnica base');
+    addMeso('BPG','bpg','general','Preparatorio','Etapa Preparación General','Fuerza general / Resistencia general');
+    addMeso('BPE','bpe','especifico','Preparatorio','Etapa Preparación Específica','Sistemas de juego / Capacidad aeróbica');
+    addMeso('Preparatorio','preparatorio','preparatorio','Competiciones','Estabilización de la Forma','Sistemas de juego');
+  } else { // tradicional
+    addMeso('Introductorio','introductorio','acondicionamiento','Preparatorio','Etapa Preparación General','Acondicionamiento general / Técnica');
+    addMeso('BPG','bpg','general','Preparatorio','Etapa Preparación General','Fuerza general / Resistencia general');
+    addMeso('BPE','bpe','especifico','Preparatorio','Etapa Preparación Específica','Fuerza y resistencia específicas');
+    addMeso('Preparatorio','preparatorio','preparatorio','Competiciones','Estabilización de la Forma','Ritmo competición / Rapidez ejecución');
+  }
+
+  // === Bloque de competición + taper por cada pico ===
+  comps.forEach((c,idx) => {
+    const ct = COMPETITION_PICO_TYPES[c.type] || COMPETITION_PICO_TYPES.pico;
+    const tMicros = buildTaperMicros(ct.taperFactor);
+    const cMicros = buildCompMicro();
+    mesoDefs.push({
+      name:`${ct.emoji} ${c.name||'Competición'} ${idx+1}`,
+      type:'competicion',
+      objective:`Pico competitivo · ${c.date}`,
+      periodo: comps.length>1?`Competiciones ${idx+1}`:'Competiciones',
+      etapa: ct.label,
+      micro: [...tMicros, ...cMicros]
+    });
+  });
+
+  // Si no hay competiciones, asegurar un mesociclo de competición genérico
+  if(!comps.length){
+    mesoDefs.push({name:'Competición',type:'competicion',objective:'Picos competitivos',periodo:'Competiciones',etapa:'Competiciones Fundamentales',micro:[['aproximacion',17],['competicion',13,1],['competicion',11,1],['restablecimiento',8]]});
+  }
+
+  // === Transición/regeneración al final ===
+  mesoDefs.push({name:'Transición',type:'restablecimiento',objective:'Regeneración física y psicológica',periodo:'Transitorio',etapa:'Regeneración',micro:microByRole.transicion.map(m=>[...m])});
+
+  // === Insertar descargas periódicas si el total es largo ===
+  // (el microciclo R final de cada mesociclo ya actúa como descarga natural, así que
+  // no hace falta insertar semanas extra: la teoría queda cubierta).
+  return { mesoDefs, model, cat, lvl };
+}
+
 // ===== CREATE MACROCICLO WIZARD =====
 function showCreateMacroModal(athId){
   const ath = getAthleteById(athId);
   if(!ath) return;
+  const autoCategory = normalizeSportCategory(ath.sportCategory, ath.sport);
+  const autoLevel = normalizeLevel(ath.level);
+  const autoGoals = (ath.goals||[]).slice(0,3);
+  while(autoGoals.length<3) autoGoals.push('');
+  const autoComps = (ath.competitionDates||[]).map((d,i)=>({date:d, type:i===0?'pico':'secundaria', name:ath.competitionType||`Competición ${i+1}`}));
+  if(!autoComps.length) autoComps.push({date:'', type:'pico', name:'Competición principal'});
+  window.__macroCompList = autoComps.map(c=>({...c}));
   showModal(`
     <div class="modal-hdr"><div class="modal-title">Nuevo Macrociclo — ${ath.name}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+
+    <div style="background:linear-gradient(135deg,rgba(139,115,64,.08),rgba(139,115,64,.02));border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--muted);line-height:1.5">
+      <i class="fas fa-flask" style="color:var(--primary-l);margin-right:4px"></i>
+      <strong style="color:var(--primary)">Creación científica personalizada</strong> — basada en los principios de Matveyev, Issurin (ATR), Verkhoshansky (Bloques) y Seirul·lo (microciclo estructurado). Los datos del atleta se usan para elegir el modelo óptimo y ajustar cargas.
+    </div>
+
     <div class="grid-2">
       <div class="form-group"><label>Nombre del plan</label><input type="text" id="macroName" value="Macrociclo ${ath.sport}" placeholder="Nombre del plan"></div>
       <div class="form-group"><label>Deporte</label><input type="text" id="macroSport" value="${ath.sport}" placeholder="Deporte"></div>
     </div>
+
     <div class="grid-2">
-      <div class="form-group"><label>Fecha de inicio</label><input type="date" id="macroStart" value="${TODAY}"></div>
-      <div class="form-group"><label>Fase del deportista</label>
-        <select id="macroFase">
-          <option value="3">3ª — Especialización (14-18 años)</option>
-          <option value="4" selected>4ª — Perfeccionamiento (+18 años)</option>
-          <option value="5">5ª — Rendimiento máximo (élite)</option>
+      <div class="form-group"><label>Categoría deportiva <small style="color:var(--muted)">(afecta al modelo)</small></label>
+        <select id="macroCategory" onchange="updateMacroModalOptions(${athId})">
+          ${Object.entries(SPORT_PERIODIZATION_MAP).map(([k,v])=>`<option value="${k}" ${k===autoCategory?'selected':''}>${v.label} — ${v.examples.split(',')[0]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>Nivel del atleta</label>
+        <select id="macroLevel" onchange="updateMacroModalOptions(${athId})">
+          ${Object.entries(LEVEL_PROFILE).map(([k,v])=>`<option value="${k}" ${k===autoLevel?'selected':''}>${v.label}</option>`).join('')}
         </select>
       </div>
     </div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Fecha de inicio</label><input type="date" id="macroStart" value="${TODAY}"></div>
+      <div class="form-group"><label>Sexo <small style="color:var(--muted)">(adaptaciones fisiológicas)</small></label>
+        <select id="macroSex">
+          <option value="M">Masculino</option>
+          <option value="F">Femenino (ajuste por ciclo menstrual)</option>
+          <option value="X">Prefiero no especificar</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Edad (años)</label><input type="number" id="macroAge" value="${ath.age||24}" min="8" max="85"></div>
+      <div class="form-group"><label>Días de entrenamiento/semana</label><input type="number" id="macroDays" value="5" min="1" max="7"></div>
+    </div>
+
     <div class="form-group"><label>Tipo de periodización</label>
       <select id="macroType" onchange="updateMacroModalOptions(${athId})">
+        <option value="automatico" selected>🤖 Automático — IA científica (basada en perfil del atleta)</option>
         <option value="tradicional">Macrociclo Tradicional Simple</option>
         <option value="tradicional-doble">Macrociclo Tradicional Doble</option>
         <option value="atr">Macrociclo ATR (Acumulación-Transformación-Realización)</option>
@@ -5757,12 +6035,56 @@ function showCreateMacroModal(athId){
         <option value="larga-atr">Larga Temporada — ATR (deportes colectivos)</option>
       </select>
     </div>
+
     <div id="macroSubOptions"></div>
-    <div class="form-group"><label>Objetivo principal</label><input type="text" id="macroObj" value="Mejorar rendimiento en ${ath.sport}" placeholder="Objetivo del plan"></div>
-    <div class="info-box mt-8" style="font-size:11px"><i class="fas fa-info-circle"></i><span id="macroInfoText">Selecciona el tipo de periodización para ver la descripción y estructura generada.</span></div>
+
+    <div class="form-group"><label>Objetivos principales (hasta 3)</label>
+      <input type="text" id="macroObj1" value="${autoGoals[0]||('Mejorar rendimiento en '+ath.sport)}" placeholder="Objetivo #1" style="margin-bottom:6px">
+      <input type="text" id="macroObj2" value="${autoGoals[1]||''}" placeholder="Objetivo #2 (opcional)" style="margin-bottom:6px">
+      <input type="text" id="macroObj3" value="${autoGoals[2]||''}" placeholder="Objetivo #3 (opcional)">
+    </div>
+
+    <div class="form-group">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>Calendario de competiciones</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addMacroCompetition(${athId})" style="font-size:10px;padding:2px 8px"><i class="fas fa-plus"></i> Añadir</button>
+      </label>
+      <div id="macroCompList" style="margin-top:6px"></div>
+    </div>
+
+    <div class="info-box mt-8" style="font-size:11px"><i class="fas fa-info-circle"></i><span id="macroInfoText">La IA elegirá el mejor modelo según tu perfil.</span></div>
+    <div id="macroRationale" style="margin-top:8px"></div>
+
     <button class="btn btn-primary btn-full mt-16" onclick="createMacrociclo(${athId})"><i class="fas fa-calendar-plus"></i> Crear Macrociclo</button>
-  `, 560);
-  setTimeout(()=>updateMacroModalOptions(athId), 60);
+  `, 640);
+  setTimeout(()=>{ renderMacroCompList(athId); updateMacroModalOptions(athId); }, 60);
+}
+
+// Renderiza la lista dinámica de competiciones del wizard
+function renderMacroCompList(athId){
+  const list = window.__macroCompList||[];
+  const el = document.getElementById('macroCompList');
+  if(!el) return;
+  if(!list.length){ el.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px">Sin competiciones — añade al menos una pico para activar el taper.</div>'; return; }
+  el.innerHTML = list.map((c,i)=>`
+    <div style="display:grid;grid-template-columns:1.2fr 1.3fr 1.3fr auto;gap:6px;align-items:center;margin-bottom:6px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px">
+      <input type="date" value="${c.date||''}" onchange="window.__macroCompList[${i}].date=this.value;updateMacroModalOptions(${athId})" style="font-size:11px;padding:4px 6px">
+      <select onchange="window.__macroCompList[${i}].type=this.value;updateMacroModalOptions(${athId})" style="font-size:11px;padding:4px 6px">
+        ${Object.entries(COMPETITION_PICO_TYPES).map(([k,v])=>`<option value="${k}" ${k===c.type?'selected':''}>${v.emoji} ${v.label}</option>`).join('')}
+      </select>
+      <input type="text" value="${(c.name||'').replace(/"/g,'&quot;')}" placeholder="Nombre competición" onchange="window.__macroCompList[${i}].name=this.value" style="font-size:11px;padding:4px 6px">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="removeMacroCompetition(${i},${athId})" style="color:var(--danger);padding:2px 6px;font-size:10px" title="Eliminar"><i class="fas fa-times"></i></button>
+    </div>
+  `).join('');
+}
+function addMacroCompetition(athId){
+  window.__macroCompList = window.__macroCompList||[];
+  window.__macroCompList.push({date:'', type:'secundaria', name:'Nueva competición'});
+  renderMacroCompList(athId); updateMacroModalOptions(athId);
+}
+function removeMacroCompetition(idx, athId){
+  window.__macroCompList = (window.__macroCompList||[]).filter((_,i)=>i!==idx);
+  renderMacroCompList(athId); updateMacroModalOptions(athId);
 }
 function updateMacroModalOptions(athId){
   const typeEl = document.getElementById('macroType');
@@ -5771,6 +6093,7 @@ function updateMacroModalOptions(athId){
   if(!typeEl||!sub||!info) return;
   const type = typeEl.value;
   const infoMap = {
+    'automatico':'🤖 La IA elegirá el mejor modelo (tradicional/ATR/bloques/larga) a partir de la categoría, el nivel y el calendario de competiciones. El taper antes de cada pico se ajusta automáticamente al tipo de deporte (natación 2 sem · fuerza 1-2 sem · equipo 1 sem).',
     'tradicional':'Periodización clásica: Preparatorio (Etapa General + Etapa Específica) → Periodo Competiciones → Periodo Transitorio. Para deportes de resistencia y técnicos. Mesociclos de 4 semanas (3 en potencia/principiante).',
     'tradicional-doble':'Dos macrociclos encadenados sin Periodo Transitorio intermedio. El 2º macrociclo NO tiene mesociclo Introductorio. Útil cuando hay dos picos competitivos separados.',
     'atr':'Acumulación (Fuerza máx + Pot. aeróbica) → Transformación → Realización. Para deportistas de resistencia en fases 4-5. REGLA: nunca más de 5 semanas sin restablecer la Acumulación.',
@@ -5779,6 +6102,33 @@ function updateMacroModalOptions(athId){
     'larga-atr':'ATR para larga temporada: Acumulación incluye Táctica individual y Sistemas de juego. Transformación incluye sistemas + umbral/potencia + fuerza repetitiva.'
   };
   info.textContent = infoMap[type]||'';
+
+  // Panel de "razonamiento IA" — solo visible en modo automático
+  const rationaleEl = document.getElementById('macroRationale');
+  if(rationaleEl){
+    if(type==='automatico'){
+      const cat = document.getElementById('macroCategory')?.value || 'ciclico';
+      const level = document.getElementById('macroLevel')?.value || 'intermedio';
+      const sex = document.getElementById('macroSex')?.value || 'M';
+      const age = parseInt(document.getElementById('macroAge')?.value)||24;
+      const comps = (window.__macroCompList||[]).filter(c=>c.date);
+      const picked = pickPeriodizationModel({category:cat, level, nCompetitions:comps.length, totalWeeks:null, sex});
+      const cSport = SPORT_PERIODIZATION_MAP[cat]; const cLvl = LEVEL_PROFILE[level];
+      const picos = comps.filter(c=>c.type==='pico').length;
+      const menstrualNote = (sex==='F' && age>=13 && age<=50) ? '<div style="font-size:10px;color:var(--muted);margin-top:4px"><i class="fas fa-venus" style="color:#c47abb"></i> Se añadirán notas de adaptación al ciclo menstrual (fase folicular/ovulación → cargas altas; fase lútea → reducir intensidad si hay SPM severo).</div>' : '';
+      rationaleEl.innerHTML = `
+        <div style="background:linear-gradient(135deg,rgba(74,122,90,.08),rgba(74,122,90,.02));border:1px solid rgba(74,122,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;line-height:1.6">
+          <div style="font-weight:600;color:var(--ok);margin-bottom:4px"><i class="fas fa-brain"></i> Recomendación algorítmica</div>
+          <div>• <strong>Modelo elegido:</strong> <span style="color:var(--primary);font-weight:600">${picked.toUpperCase()}</span></div>
+          <div>• <strong>Categoría:</strong> ${cSport?.label||cat} · <strong>Nivel:</strong> ${cLvl?.label||level} · mesociclos de <strong>${cLvl?.mesoLen||4}</strong> semanas</div>
+          <div>• <strong>Competiciones:</strong> ${comps.length} (${picos} pico${picos!==1?'s':''}) · <strong>Taper:</strong> ${cSport?.taperWeeks||1} sem, reducción volumen ${cSport?.taperVolReduction||40}%</div>
+          <div>• <strong>Descarga periódica:</strong> cada ${Math.round((cSport?.deloadEveryWeeks||4)*(cLvl?.deloadFactor||1))} semanas (1 microciclo R)</div>
+          ${menstrualNote}
+        </div>`;
+    } else { rationaleEl.innerHTML = ''; }
+  }
+
+  if(type==='automatico'){ sub.innerHTML = ''; return; }
   if(type==='atr'){
     sub.innerHTML = `<div class="grid-2">
       <div class="form-group"><label>Modalidad de resistencia</label><select id="atrSubtype">
@@ -5814,15 +6164,34 @@ function createMacrociclo(athId){
   const sport = document.getElementById('macroSport').value.trim();
   const start = document.getElementById('macroStart').value;
   const macroType = document.getElementById('macroType').value;
-  const obj = document.getElementById('macroObj').value.trim();
+  // Personalización nueva (puede no existir en llamadas legacy)
+  const category = document.getElementById('macroCategory')?.value || normalizeSportCategory(null, sport);
+  const level    = document.getElementById('macroLevel')?.value    || 'intermedio';
+  const sex      = document.getElementById('macroSex')?.value      || 'M';
+  const age      = parseInt(document.getElementById('macroAge')?.value)||null;
+  const trainDays = parseInt(document.getElementById('macroDays')?.value)||5;
+  const obj1 = document.getElementById('macroObj1')?.value?.trim() || document.getElementById('macroObj')?.value?.trim() || '';
+  const obj2 = document.getElementById('macroObj2')?.value?.trim() || '';
+  const obj3 = document.getElementById('macroObj3')?.value?.trim() || '';
+  const objectives = [obj1,obj2,obj3];
+  const competitionsList = (window.__macroCompList||[]).filter(c=>c.date);
   if(!name||!start){toast('Completa nombre y fecha','error');return;}
   const getEl = id=>{const e=document.getElementById(id);return e?e.value:null;};
   const is3w = macroType==='bloques'||(macroType.includes('tradicional')&&getEl('tradSubtype')==='potencia');
 
   // Each meso definition: {name, type, objective, periodo, etapa, micro:[[microType,load,isComp],...]}
   let mesoDefs = [];
+  let autoPicked = null; // para mostrar en el toast final qué modelo eligió la IA
 
-  if(macroType==='tradicional'||macroType==='larga-tradicional'){
+  if(macroType==='automatico'){
+    const auto = buildAutoMesoDefs({
+      startDate: start,
+      competitions: competitionsList,
+      level, category, sex, age
+    });
+    mesoDefs = auto.mesoDefs;
+    autoPicked = auto.model;
+  } else if(macroType==='tradicional'||macroType==='larga-tradicional'){
     const numBPG = parseInt(getEl('numBPG'))||2;
     const isLarga = macroType==='larga-tradicional';
     const w4 = !is3w;
@@ -5954,11 +6323,35 @@ function createMacrociclo(athId){
   mesociclos.forEach(m=>m.microcycles.forEach((_,wi)=>{
     detailedSessions[`${m.num}-${wi+1}`]=Array.from({length:7},(_,si)=>({num:si+1,exercises:Array.from({length:7},()=>({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),observations:'',volume:''}));
   }));
+  // Persistir personalización científica en el plan (útil para exportación,
+  // auditoría y para que futuras recomendaciones usen el mismo perfil).
+  const personalization = {
+    category, level, sex, age,
+    trainingDaysPerWeek: trainDays,
+    competitions: competitionsList.map(c=>({...c})),
+    autoPicked: autoPicked||null,
+    generatedAt: new Date().toISOString()
+  };
+
+  // Retroalimentar el atleta con los datos de personalización (sin sobrescribir info crítica)
+  const ath2 = getAthleteById(athId);
+  if(ath2){
+    if(level) ath2.level = (LEVEL_PROFILE[level]||{}).label || ath2.level;
+    if(category && !ath2.sportCategory) ath2.sportCategory = SPORT_PERIODIZATION_MAP[category]?.label || ath2.sportCategory;
+    const nonEmptyGoals = objectives.filter(Boolean);
+    if(nonEmptyGoals.length) ath2.goals = nonEmptyGoals;
+    const compDates = competitionsList.map(c=>c.date).filter(Boolean);
+    if(compDates.length) ath2.competitionDates = compDates;
+  }
+
   DB.plans.push({id:uid(),athleteId:athId,coachId:S.user.id,name,title:name,sport,macroType,startDate:start,endDate,
     schedule:{lunes:sport,martes:'Potencia',miercoles:'Aeróbica',jueves:sport,viernes:'Técnica',sabado:'—',domingo:'—'},
-    objectives:[obj,'',''],observations:'',weeks,mesociclos,evaluations,progress:[],detailedSessions});
+    objectives: objectives.length?objectives:[obj1,'',''],observations:'',weeks,mesociclos,evaluations,progress:[],detailedSessions,
+    // Datos de personalización científica
+    personalization, sportCategory:category, level, sex, age, trainingDaysPerWeek:trainDays, competitions:competitionsList});
   save(); closeModal();
-  toast(`Macrociclo ${macroType.toUpperCase()} creado — ${duration} semanas, ${mesoDefs.length} mesociclos`);
+  const label = autoPicked ? `AUTO→${autoPicked.toUpperCase()}` : macroType.toUpperCase();
+  toast(`Macrociclo ${label} creado — ${duration} semanas, ${mesoDefs.length} mesociclos`);
   navigate('coach-macrociclo',{planAthlete:athId});
 }
 
