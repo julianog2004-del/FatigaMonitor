@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
   <!-- SheetJS for Excel export -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <style>
     :root{--bg:#F5F0E8;--bg2:#EDE7DC;--card:#FDFBF7;--card2:#F8F4ED;--border:#D6CCBA;--primary:#8B7340;--primary-d:#6B5730;--primary-l:#A6894E;--accent:#5B4F8A;--accent-alt:#7B6EAA;--text:#2C2418;--muted:#8A7E6B;--ok:#4A7A5A;--warn:#9E8035;--danger:#A04040;--side-w:250px;--serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;--mono:'DM Mono','Fira Code',monospace;--sans:'Inter',system-ui,sans-serif}
     *{margin:0;padding:0;box-sizing:border-box}
@@ -1650,7 +1650,7 @@ function viewMacrociclo(){
         <button class="btn btn-secondary btn-sm" onclick="showCreateMesoModal(${selAth})"><i class="fas fa-plus"></i> Mesociclo</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMacroModal(${selAth})"><i class="fas fa-sync-alt"></i> Nuevo Macrociclo</button>
         <button class="btn btn-secondary btn-sm" onclick="showExportExcelModal(${selAth})" title="Exportar a Excel"><i class="fas fa-file-excel"></i> Exportar</button>
-        <button class="btn btn-sm" style="background:var(--danger);color:#fff;border-color:var(--danger)" onclick="confirmDeleteMacrociclo(${selAth})" title="Eliminar macrociclo"><i class="fas fa-trash"></i> Eliminar</button>
+        <button class="btn btn-sm" style="background:var(--warn);color:#fff;border-color:var(--warn)" onclick="confirmDeleteMacrociclo(${selAth})" title="Vaciar macrociclo (conserva tablas, borra datos)"><i class="fas fa-eraser"></i> Vaciar</button>
       </div>
     </div>
     <div class="pg-body">
@@ -6098,32 +6098,91 @@ function deleteMesociclo(athId, mesoIdx){
   save(); toast('Mesociclo eliminado'); navigate('coach-mesociclo',{planAthlete:athId});
 }
 
-// ===== ELIMINAR MACROCICLO COMPLETO =====
+// ===== VACIAR MACROCICLO (conserva estructura, borra datos) =====
 function confirmDeleteMacrociclo(athId){
   const ath = getAthleteById(athId);
   const plan = DB.plans.find(p=>p.athleteId===athId);
-  if(!plan||!ath){ toast('No hay macrociclo para eliminar','error'); return; }
+  if(!plan||!ath){ toast('No hay macrociclo para vaciar','error'); return; }
   const nMeso = (plan.mesociclos||[]).length;
   const nWeeks = (plan.weeks||[]).length;
   showModal(`
-    <div class="modal-hdr"><div class="modal-title">Eliminar Macrociclo</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <div class="modal-hdr"><div class="modal-title">Vaciar Macrociclo</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
     <div style="text-align:center;padding:16px 0">
-      <i class="fas fa-exclamation-triangle" style="font-size:40px;color:var(--danger);margin-bottom:16px"></i>
-      <p style="font-size:15px;margin-bottom:8px">¿Eliminar el macrociclo de <strong>${ath.name}</strong>?</p>
-      <p style="font-size:12px;color:var(--muted);line-height:1.5">Se eliminarán <strong>${nMeso} mesociclos</strong>, <strong>${nWeeks} semanas</strong>, evaluaciones y sesiones detalladas.<br>Esta acción no se puede deshacer.<br><span style="color:var(--warn)">Los registros de sesiones, CMJ y wellness no se verán afectados.</span></p>
+      <i class="fas fa-eraser" style="font-size:40px;color:var(--warn);margin-bottom:16px"></i>
+      <p style="font-size:15px;margin-bottom:8px">¿Vaciar el macrociclo de <strong>${ath.name}</strong>?</p>
+      <p style="font-size:12px;color:var(--muted);line-height:1.5">Se conservará la estructura (<strong>${nMeso} mesociclos</strong>, <strong>${nWeeks} semanas</strong>, sesiones y evaluaciones) pero <strong>sin datos</strong>, lista para rellenar manualmente.<br><span style="color:var(--warn)">Los registros de sesiones, CMJ y wellness no se verán afectados.</span><br><span style="color:var(--muted);font-size:11px">Esta acción no se puede deshacer.</span></p>
     </div>
     <div class="flex gap-8" style="justify-content:center">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-      <button class="btn" style="background:var(--danger);color:#fff" onclick="deleteMacrociclo(${athId})"><i class="fas fa-trash"></i> Eliminar macrociclo</button>
+      <button class="btn" style="background:var(--warn);color:#fff" onclick="deleteMacrociclo(${athId})"><i class="fas fa-eraser"></i> Vaciar macrociclo</button>
     </div>
   `);
 }
 function deleteMacrociclo(athId){
   const ath = getAthleteById(athId);
-  DB.plans = DB.plans.filter(p => p.athleteId !== athId);
+  const plan = DB.plans.find(p => p.athleteId === athId);
+  if(!plan){ toast('No hay macrociclo','error'); return; }
+  const dayNames = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+  // Semanas: conservar weekNum y mesociclo; vaciar tipo, carga, etapa, periodo, competición, notas
+  plan.weeks = (plan.weeks||[]).map(w => ({
+    weekNum: w.weekNum,
+    type: '',
+    targetLoad: 0,
+    mesociclo: w.mesociclo,
+    etapa: '',
+    periodo: '',
+    competition: false,
+    notes: ''
+  }));
+
+  // Mesociclos: conservar num y nombre mes; vaciar datos de sesiones y observaciones
+  plan.mesociclos = (plan.mesociclos||[]).map(m => ({
+    num: m.num,
+    name: m.name || `Mes ${m.num}`,
+    microcycles: (m.microcycles||[]).map((mc, wi) => ({
+      weekNum: mc.weekNum || (wi+1),
+      sessions: (mc.sessions && mc.sessions.length ? mc.sessions : Array.from({length:7},(_,di)=>({num:di+1,day:dayNames[di]}))).map((s,di) => ({
+        num: s.num || (di+1),
+        day: s.day || dayNames[di],
+        type: '',
+        volume: 0,
+        intensity: 0
+      })),
+      observations: ''
+    }))
+  }));
+
+  // Evaluaciones: conservar número, vaciar datos
+  plan.evaluations = (plan.evaluations||[]).map(e => ({
+    num: e.num,
+    date: '', peso: 0, grasa: 0, masaMuscular: 0,
+    biceps: 0, pecho: 0, cintura: 0, cadera: 0, muslo: 0, gemelo: 0,
+    observations: ''
+  }));
+
+  // Sesiones detalladas: vaciar ejercicios pero conservar las claves
+  if(plan.detailedSessions){
+    Object.keys(plan.detailedSessions).forEach(k => {
+      plan.detailedSessions[k] = (plan.detailedSessions[k]||[]).map((ses,si) => ({
+        num: ses.num || (si+1),
+        exercises: Array.from({length:7}, () => ({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''})),
+        observations: '',
+        volume: ''
+      }));
+    });
+  }
+
+  // Horario semanal: vaciar
+  plan.schedule = {lunes:'',martes:'',miercoles:'',jueves:'',viernes:'',sabado:'',domingo:''};
+
+  // Nivel de plan: vaciar objetivos y observaciones (conservar title, startDate, endDate, sport)
+  plan.objectives = ['','',''];
+  plan.observations = '';
+
   save();
   closeModal();
-  toast(`Macrociclo de ${ath?ath.name:'atleta'} eliminado`);
+  toast(`Macrociclo de ${ath?ath.name:'atleta'} vaciado — listo para rellenar manualmente`);
   navigate('coach-macrociclo',{planAthlete:athId});
 }
 
@@ -6132,7 +6191,7 @@ function showExportExcelModal(athId){
   const ath = getAthleteById(athId);
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(!plan||!ath){ toast('No hay macrociclo para exportar','error'); return; }
-  if(typeof XLSX === 'undefined'){ toast('Librería XLSX no cargada. Comprueba tu conexión.','error'); return; }
+  if(typeof ExcelJS === 'undefined'){ toast('Librería ExcelJS no cargada. Comprueba tu conexión.','error'); return; }
   // Contar datos disponibles
   const nWeeks = (plan.weeks||[]).length;
   const nMeso = (plan.mesociclos||[]).length;
@@ -6180,121 +6239,342 @@ function showExportExcelModal(athId){
   `);
 }
 
-function exportMacrocicloToExcel(athId){
+async function exportMacrocicloToExcel(athId){
   const ath = getAthleteById(athId);
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(!plan||!ath){ toast('No se pudo exportar','error'); return; }
-  if(typeof XLSX === 'undefined'){ toast('Librería XLSX no cargada','error'); return; }
+  if(typeof ExcelJS === 'undefined'){ toast('Librería ExcelJS no cargada','error'); return; }
   const opts = Array.from(document.querySelectorAll('.exportOpt:checked')).map(cb=>cb.value);
   if(!opts.length){ toast('Selecciona al menos una hoja','error'); return; }
 
-  const wb = XLSX.utils.book_new();
-  // Helper: crea una worksheet desde array-of-arrays y ajusta anchos
-  const addSheet = (rows, name, colWidths) => {
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    if(colWidths) ws['!cols'] = colWidths.map(w => ({wch:w}));
-    // Congelar primera fila como cabecera
-    ws['!freeze'] = {xSplit:0, ySplit:1};
-    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{c:0,r:0}, e:{c:(rows[0]||[]).length-1, r:Math.max(0, rows.length-1)}})};
-    XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31));
+  // ===== PALETA DE COLORES (ARGB) =====
+  const COLORS = {
+    primary:     'FF8B7340',  // marrón primary
+    primaryL:    'FFEDE1C9',  // marrón suave para banda
+    headerFg:    'FFFFFFFF',
+    sectionBg:   'FFEDE7DC',  // beige secciones resumen
+    sectionFg:   'FF5C4A2A',
+    altRow:      'FFFAF7F1',  // zebra striping
+    border:      'FFD9D2BF',
+    // Micro types — colores fuertes para texto, tintes suaves para fondo
+    microType: {
+      gradual:          { dark:'FF2D7A5C', light:'FFDBEDE2' },
+      corriente:        { dark:'FF5B4F8A', light:'FFE2DEEC' },
+      choque:           { dark:'FFA04040', light:'FFF0D6D6' },
+      restablecimiento: { dark:'FF4A7A5A', light:'FFDCEAE0' },
+      competicion:      { dark:'FF9E8035', light:'FFF0E5C4' },
+      aproximacion:     { dark:'FFC47820', light:'FFF4DDBE' },
+      control:          { dark:'FF7B6EAA', light:'FFE1DDEC' }
+    },
+    periodo: {
+      'Preparatorio': { dark:'FF2D7A5C', light:'FFDBEDE2' },
+      'Competitivo':  { dark:'FF9E8035', light:'FFF0E5C4' },
+      'Transitorio':  { dark:'FF7B6EAA', light:'FFE1DDEC' }
+    },
+    danger:  'FFA04040',
+    success: 'FF2D7A5C'
   };
 
-  // 1) Resumen
+  const thinBorder = { style:'thin', color:{argb: COLORS.border} };
+  const borderAll = { top:thinBorder, left:thinBorder, bottom:thinBorder, right:thinBorder };
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'FatigaMonitor Pro';
+  wb.lastModifiedBy = 'FatigaMonitor Pro';
+  wb.created = new Date();
+  wb.modified = new Date();
+
+  // === Helpers ===
+  function styleHeaderRow(row){
+    row.eachCell(cell => {
+      cell.font = { bold:true, color:{argb:COLORS.headerFg}, size:11, name:'Calibri' };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.primary} };
+      cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+      cell.border = borderAll;
+    });
+    row.height = 22;
+  }
+  function styleBody(row, opts={}){
+    row.eachCell(cell => {
+      if(!cell.font) cell.font = { size:10, name:'Calibri' };
+      cell.alignment = { vertical:'middle', horizontal: cell.col === 1 ? 'center' : 'left', wrapText:true };
+      cell.border = borderAll;
+    });
+  }
+  function zebraFill(row, idx){
+    if(idx % 2 === 0){
+      row.eachCell(cell => {
+        if(!cell.fill || cell.fill.pattern !== 'solid' || !cell.fill.fgColor){
+          cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.altRow} };
+        }
+      });
+    }
+  }
+
+  // ======================================================================
+  // HOJA 1: RESUMEN
+  // ======================================================================
   if(opts.includes('resumen')){
-    const coach = DB.users.find(u=>u.id===ath.coachId);
-    const rows = [
-      ['FATIGAMONITOR — RESUMEN DEL MACROCICLO'],
-      ['Generado', new Date().toLocaleString('es-ES')],
-      [],
-      ['ATLETA'],
-      ['Nombre', ath.name],
-      ['Edad', ath.age||'—'],
-      ['Peso (kg)', ath.weight||'—'],
-      ['Altura (cm)', ath.height||'—'],
-      ['CMJ baseline (cm)', ath.cmjBase||'—'],
-      ['Deporte', ath.sport||'—'],
-      ['Categoría deportiva', ath.sportCategory||plan.sportCategory||'—'],
-      ['Nivel', ath.level||plan.level||'—'],
-      ['Objetivos', (ath.goals||plan.goals||[]).join(' · ')||'—'],
-      ['Tipo de competición', ath.competitionType||plan.competitionType||'—'],
-      ['Fechas de competición', (ath.competitionDates||plan.competitionDates||[]).join(' · ')||'—'],
-      ['Entrenador', coach?coach.name:'—'],
-      [],
-      ['MACROCICLO'],
-      ['Título', plan.title||plan.name||'—'],
-      ['Tipo de periodización', plan.macroType||'—'],
-      ['Fecha inicio', plan.startDate||'—'],
-      ['Fecha fin', plan.endDate||'—'],
-      ['Número de semanas', (plan.weeks||[]).length],
-      ['Número de mesociclos', (plan.mesociclos||[]).length],
-      ['Observaciones del plan', plan.observations||'—'],
-      [],
-      ['OBJETIVOS DEL PLAN'],
-      ...(plan.objectives||[]).filter(Boolean).map((o,i)=>[`${i+1}.`, o]),
-      [],
-      ['HORARIO SEMANAL'],
-      ['Lunes', plan.schedule&&plan.schedule.lunes||'—'],
-      ['Martes', plan.schedule&&plan.schedule.martes||'—'],
-      ['Miércoles', plan.schedule&&plan.schedule.miercoles||'—'],
-      ['Jueves', plan.schedule&&plan.schedule.jueves||'—'],
-      ['Viernes', plan.schedule&&plan.schedule.viernes||'—'],
-      ['Sábado', plan.schedule&&plan.schedule.sabado||'—'],
-      ['Domingo', plan.schedule&&plan.schedule.domingo||'—']
+    const ws = wb.addWorksheet('Resumen', {
+      views: [{ state:'frozen', ySplit:1, showGridLines:false }],
+      properties: { defaultColWidth: 20 }
+    });
+    ws.columns = [
+      { key:'label', width:30 },
+      { key:'value', width:55 }
     ];
-    addSheet(rows, 'Resumen', [24, 60]);
+
+    // Banner de título
+    ws.mergeCells('A1:B1');
+    const titleCell = ws.getCell('A1');
+    titleCell.value = 'FATIGAMONITOR PRO — RESUMEN DEL MACROCICLO';
+    titleCell.font = { bold:true, size:16, color:{argb:COLORS.headerFg}, name:'Calibri' };
+    titleCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.primary} };
+    titleCell.alignment = { vertical:'middle', horizontal:'center' };
+    titleCell.border = borderAll;
+    ws.getRow(1).height = 30;
+
+    const coach = DB.users.find(u=>u.id===ath.coachId);
+    const addRow = (label, value) => {
+      const r = ws.addRow([label, value]);
+      r.getCell(1).font = { bold:true, size:10, color:{argb:COLORS.sectionFg}, name:'Calibri' };
+      r.getCell(1).alignment = { vertical:'middle', horizontal:'left', wrapText:true };
+      r.getCell(1).border = borderAll;
+      r.getCell(2).font = { size:10, name:'Calibri' };
+      r.getCell(2).alignment = { vertical:'middle', horizontal:'left', wrapText:true };
+      r.getCell(2).border = borderAll;
+      return r;
+    };
+    const addSection = (title) => {
+      ws.addRow([]);
+      ws.mergeCells(`A${ws.rowCount+1}:B${ws.rowCount+1}`);
+      const r = ws.addRow([title]);
+      const c = r.getCell(1);
+      c.font = { bold:true, size:12, color:{argb:COLORS.primary}, name:'Calibri' };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.sectionBg} };
+      c.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+      c.border = borderAll;
+      r.height = 22;
+    };
+
+    addRow('Generado', new Date().toLocaleString('es-ES'));
+    addSection('ATLETA');
+    addRow('Nombre', ath.name);
+    addRow('Edad', ath.age||'—');
+    addRow('Peso (kg)', ath.weight||'—');
+    addRow('Altura (cm)', ath.height||'—');
+    addRow('CMJ baseline (cm)', ath.cmjBase||'—');
+    addRow('Deporte', ath.sport||'—');
+    addRow('Categoría deportiva', ath.sportCategory||plan.sportCategory||'—');
+    addRow('Nivel', ath.level||plan.level||'—');
+    addRow('Objetivos', (ath.goals||plan.goals||[]).join(' · ')||'—');
+    addRow('Tipo de competición', ath.competitionType||plan.competitionType||'—');
+    addRow('Fechas de competición', (ath.competitionDates||plan.competitionDates||[]).join(' · ')||'—');
+    addRow('Entrenador', coach?coach.name:'—');
+
+    addSection('MACROCICLO');
+    addRow('Título', plan.title||plan.name||'—');
+    const typeLabels = {tradicional:'Tradicional', atr:'ATR','tradicional-doble':'Doble','bloques':'Bloques','larga-tradicional':'Larga Tradicional','larga-atr':'Larga ATR'};
+    addRow('Tipo de periodización', typeLabels[plan.macroType]||plan.macroType||'—');
+    addRow('Fecha inicio', plan.startDate||'—');
+    addRow('Fecha fin', plan.endDate||'—');
+    addRow('Número de semanas', (plan.weeks||[]).length);
+    addRow('Número de mesociclos', (plan.mesociclos||[]).length);
+    addRow('Observaciones del plan', plan.observations||'—');
+
+    addSection('OBJETIVOS DEL PLAN');
+    (plan.objectives||[]).filter(Boolean).forEach((o,i)=>addRow(`${i+1}.`, o));
+
+    addSection('HORARIO SEMANAL');
+    addRow('Lunes',     plan.schedule&&plan.schedule.lunes||'—');
+    addRow('Martes',    plan.schedule&&plan.schedule.martes||'—');
+    addRow('Miércoles', plan.schedule&&plan.schedule.miercoles||'—');
+    addRow('Jueves',    plan.schedule&&plan.schedule.jueves||'—');
+    addRow('Viernes',   plan.schedule&&plan.schedule.viernes||'—');
+    addRow('Sábado',    plan.schedule&&plan.schedule.sabado||'—');
+    addRow('Domingo',   plan.schedule&&plan.schedule.domingo||'—');
   }
 
-  // 2) Macrociclo — 52 semanas
+  // ======================================================================
+  // HOJA 2: MACROCICLO — 52 SEMANAS
+  // ======================================================================
   if(opts.includes('macrociclo') && plan.weeks && plan.weeks.length){
-    const header = ['Sem','Fecha inicio','Mesociclo','Etapa','Período','Tipo microciclo','Carga objetivo','Competición','Notas'];
+    const ws = wb.addWorksheet('Macrociclo', {
+      views: [{ state:'frozen', ySplit:1, showGridLines:false }]
+    });
+    const headers = ['Sem','Fecha inicio','Mesociclo','Etapa','Período','Tipo microciclo','Carga','Competición','Notas'];
+    const widths = [6, 14, 11, 26, 15, 17, 9, 13, 35];
+    ws.columns = headers.map((h,i)=>({ header:h, key:`c${i}`, width:widths[i] }));
+
+    // Formato de la fila header
+    styleHeaderRow(ws.getRow(1));
+
     const startT = new Date(plan.startDate).getTime();
-    const rows = [header, ...plan.weeks.map((w,i) => {
+    plan.weeks.forEach((w,i) => {
       const wStart = new Date(startT + i*7*24*3600*1000).toISOString().slice(0,10);
-      return [w.weekNum, wStart, w.mesociclo||'', w.etapa||'', w.periodo||'', w.type||'', w.targetLoad||0, w.competition?'Sí':'', w.notes||''];
-    })];
-    addSheet(rows, 'Macrociclo', [6, 13, 11, 22, 14, 16, 9, 13, 30]);
+      const row = ws.addRow([
+        w.weekNum, wStart, w.mesociclo||'', w.etapa||'', w.periodo||'',
+        w.type||'', w.targetLoad||0, w.competition?'Sí':'', w.notes||''
+      ]);
+      // Estilos por celda
+      const typeColors = COLORS.microType[w.type];
+      const periodoColors = COLORS.periodo[w.periodo];
+
+      row.eachCell((cell, colNum) => {
+        cell.font = { size:10, name:'Calibri' };
+        cell.alignment = { vertical:'middle', horizontal: (colNum<=3||colNum===7||colNum===8)?'center':'left', wrapText:true };
+        cell.border = borderAll;
+      });
+
+      // Columna 1 (Sem): bold + fondo suave del tipo
+      if(typeColors){
+        row.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:typeColors.light} };
+        row.getCell(1).font = { bold:true, size:11, color:{argb:typeColors.dark}, name:'Calibri' };
+      } else {
+        row.getCell(1).font = { bold:true, size:11, name:'Calibri' };
+      }
+
+      // Columna 5 (Período): color de fondo si lo hay
+      if(periodoColors){
+        row.getCell(5).fill = { type:'pattern', pattern:'solid', fgColor:{argb:periodoColors.light} };
+        row.getCell(5).font = { size:10, color:{argb:periodoColors.dark}, bold:true, name:'Calibri' };
+      }
+
+      // Columna 6 (Tipo microciclo): fondo intenso del tipo
+      if(typeColors){
+        row.getCell(6).fill = { type:'pattern', pattern:'solid', fgColor:{argb:typeColors.dark} };
+        row.getCell(6).font = { bold:true, size:10, color:{argb:COLORS.headerFg}, name:'Calibri' };
+        row.getCell(6).alignment = { vertical:'middle', horizontal:'center' };
+      }
+
+      // Columna 7 (Carga): formato numérico + bold
+      row.getCell(7).numFmt = '0';
+      row.getCell(7).font = { bold:true, size:11, name:'Calibri' };
+      row.getCell(7).alignment = { vertical:'middle', horizontal:'center' };
+
+      // Columna 8 (Competición): si Sí → verde con check
+      if(w.competition){
+        row.getCell(8).fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.success} };
+        row.getCell(8).font = { bold:true, size:11, color:{argb:COLORS.headerFg}, name:'Calibri' };
+      }
+    });
+
+    // Definir tabla real para que Excel la reconozca como tabla (filtros, estilos)
+    const lastRow = ws.rowCount;
+    ws.addTable({
+      name: 'TablaMacrociclo',
+      ref: 'A1',
+      headerRow: true,
+      totalsRow: false,
+      style: { theme:'TableStyleLight15', showRowStripes:false },
+      columns: headers.map(h => ({ name:h, filterButton:true })),
+      rows: Array.from({length:lastRow-1}, (_,i)=>{
+        const r = ws.getRow(i+2);
+        return r.values.slice(1, headers.length+1);
+      })
+    });
   }
 
-  // 3) Mesociclos
+  // ======================================================================
+  // HOJA 3: MESOCICLOS
+  // ======================================================================
   if(opts.includes('mesociclos') && plan.mesociclos && plan.mesociclos.length){
-    const header = ['Nº','Nombre','Nº microciclos','Tipos de microciclo','Carga media','Sesiones/sem','Observación'];
-    const rows = [header, ...plan.mesociclos.map(m => {
+    const ws = wb.addWorksheet('Mesociclos', {
+      views: [{ state:'frozen', ySplit:1, showGridLines:false }]
+    });
+    const headers = ['Nº','Nombre','Microciclos','Tipos dominantes','Carga media','Sesiones/sem','Observaciones'];
+    const widths = [6, 18, 13, 32, 13, 14, 40];
+    ws.columns = headers.map((h,i)=>({ header:h, key:`c${i}`, width:widths[i] }));
+    styleHeaderRow(ws.getRow(1));
+
+    plan.mesociclos.forEach((m, idx) => {
       const types = [...new Set((m.microcycles||[]).map((mc,wi)=>{
-        const globalWeek = ((m.num-1)*4) + wi;
-        return plan.weeks && plan.weeks[globalWeek] ? plan.weeks[globalWeek].type : '';
-      }).filter(Boolean))].join(' / ');
+        const gw = ((m.num-1)*4) + wi;
+        return plan.weeks && plan.weeks[gw] ? plan.weeks[gw].type : '';
+      }).filter(Boolean))];
       const loads = (m.microcycles||[]).map((_,wi)=>{
         const gw = ((m.num-1)*4)+wi;
         return plan.weeks && plan.weeks[gw] ? (plan.weeks[gw].targetLoad||0) : 0;
       });
       const avgLoad = loads.length ? +(loads.reduce((s,x)=>s+x,0)/loads.length).toFixed(1) : 0;
       const sesPerWeek = ((m.microcycles||[])[0]?.sessions||[]).filter(s=>s.type&&s.type!=='Descanso').length;
-      const obs = (m.microcycles||[]).map(mc=>mc.observations).filter(Boolean).join(' | ')||'—';
-      return [m.num, m.name||'', (m.microcycles||[]).length, types||'—', avgLoad, sesPerWeek, obs];
-    })];
-    addSheet(rows, 'Mesociclos', [5, 16, 6, 30, 11, 12, 40]);
+      const obs = (m.microcycles||[]).map(mc=>mc.observations).filter(Boolean).join(' | ')||'';
+
+      const row = ws.addRow([m.num, m.name||'', (m.microcycles||[]).length, types.join(' · '), avgLoad, sesPerWeek, obs]);
+      row.eachCell((cell, colNum) => {
+        cell.font = { size:10, name:'Calibri' };
+        cell.alignment = { vertical:'middle', horizontal: (colNum===1||colNum===3||colNum===5||colNum===6)?'center':'left', wrapText:true };
+        cell.border = borderAll;
+      });
+      // Zebra fondo
+      if(idx % 2 === 1){
+        row.eachCell(cell => { cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.altRow} }; });
+      }
+      // Columna 1 (Nº): bold, fondo primary suave
+      row.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.primaryL} };
+      row.getCell(1).font = { bold:true, size:11, color:{argb:COLORS.primary}, name:'Calibri' };
+      row.getCell(2).font = { bold:true, size:10, name:'Calibri' };
+      row.getCell(5).numFmt = '0.0';
+      row.getCell(5).font = { bold:true, size:10, name:'Calibri' };
+    });
   }
 
-  // 4) Microciclos y sesiones
+  // ======================================================================
+  // HOJA 4: MICROCICLOS Y SESIONES (~336 filas)
+  // ======================================================================
   if(opts.includes('microciclos') && plan.mesociclos && plan.mesociclos.length){
-    const header = ['Mesociclo','Mes','Microciclo','Semana (global)','Sesión','Día','Tipo','Volumen','Intensidad','Observación'];
-    const rows = [header];
+    const ws = wb.addWorksheet('Microciclos', {
+      views: [{ state:'frozen', ySplit:1, showGridLines:false }]
+    });
+    const headers = ['Mesociclo','Mes','Microciclo','Semana global','Sesión','Día','Tipo','Volumen','Intensidad','Observación'];
+    const widths = [10, 14, 10, 13, 8, 7, 16, 10, 11, 40];
+    ws.columns = headers.map((h,i)=>({ header:h, key:`c${i}`, width:widths[i] }));
+    styleHeaderRow(ws.getRow(1));
+
     plan.mesociclos.forEach(m => {
       (m.microcycles||[]).forEach((mc, wi) => {
         const globalWeek = ((m.num-1)*4) + wi + 1;
+        const weekInfo = plan.weeks && plan.weeks[globalWeek-1];
+        const microType = weekInfo ? weekInfo.type : '';
+        const microColors = COLORS.microType[microType];
+
         (mc.sessions||[]).forEach(s => {
-          rows.push([m.num, m.name||'', mc.weekNum||(wi+1), globalWeek, s.num, s.day||'', s.type||'', s.volume||0, s.intensity||0, mc.observations||'']);
+          const isRest = s.type === 'Descanso' || !s.type;
+          const row = ws.addRow([
+            m.num, m.name||'', mc.weekNum||(wi+1), globalWeek,
+            s.num, s.day||'', s.type||'',
+            s.volume||0, s.intensity||0, mc.observations||''
+          ]);
+          row.eachCell((cell, colNum) => {
+            cell.font = { size:10, name:'Calibri' };
+            cell.alignment = { vertical:'middle', horizontal: (colNum<=6||colNum===8||colNum===9)?'center':'left', wrapText:true };
+            cell.border = borderAll;
+          });
+          // Fondo muy suave por tipo de microciclo
+          if(microColors){
+            [1,2,3,4].forEach(c => { row.getCell(c).fill = { type:'pattern', pattern:'solid', fgColor:{argb:microColors.light} }; });
+          }
+          // Columna Tipo sesión
+          if(isRest){
+            row.getCell(7).font = { italic:true, color:{argb:'FF8A7E6B'}, size:10, name:'Calibri' };
+            row.getCell(7).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFF0EDE3'} };
+          } else {
+            row.getCell(7).font = { bold:true, size:10, name:'Calibri' };
+          }
+          row.getCell(8).numFmt = '0';
+          row.getCell(9).numFmt = '0';
+          row.getCell(4).font = { bold:true, size:10, name:'Calibri' };
         });
       });
     });
-    addSheet(rows, 'Microciclos', [9, 12, 9, 14, 7, 6, 16, 9, 10, 40]);
   }
 
-  // 5) Sesiones detalladas (ejercicios con kg/series/RIR)
+  // ======================================================================
+  // HOJA 5: SESIONES DETALLADAS
+  // ======================================================================
   if(opts.includes('detalladas') && plan.detailedSessions){
-    const header = ['Mesociclo','Microciclo','Sesión','Día','Ejercicio','Kg','Serie 1','Serie 2','Serie 3','Serie 4','RIR','Descanso','Vol. sesión','Obs. sesión'];
-    const rows = [header];
     const dayLabels = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    const rowsData = [];
     Object.keys(plan.detailedSessions).sort((a,b)=>{
       const [am,aw]=a.split('-').map(Number), [bm,bw]=b.split('-').map(Number);
       return am!==bm ? am-bm : aw-bw;
@@ -6303,29 +6583,82 @@ function exportMacrocicloToExcel(athId){
       (plan.detailedSessions[key]||[]).forEach(ses => {
         const dayLabel = dayLabels[(ses.num||1)-1] || '';
         (ses.exercises||[]).filter(ex=>ex.name).forEach(ex => {
-          rows.push([mNum, wNum, ses.num, dayLabel, ex.name||'', ex.kg||'', ex.s1||'', ex.s2||'', ex.s3||'', ex.s4||'', ex.rir||'', ex.descanso||'', ses.volume||'', ses.observations||'']);
+          rowsData.push([mNum, wNum, ses.num, dayLabel, ex.name||'', ex.kg||'', ex.s1||'', ex.s2||'', ex.s3||'', ex.s4||'', ex.rir||'', ex.descanso||'', ses.volume||'', ses.observations||'']);
         });
       });
     });
-    if(rows.length > 1) addSheet(rows, 'Sesiones detalladas', [9, 10, 7, 6, 26, 7, 8, 8, 8, 8, 6, 10, 11, 30]);
+    if(rowsData.length){
+      const ws = wb.addWorksheet('Sesiones detalladas', {
+        views: [{ state:'frozen', ySplit:1, showGridLines:false }]
+      });
+      const headers = ['Mes','Micro','Sesión','Día','Ejercicio','Kg','Serie 1','Serie 2','Serie 3','Serie 4','RIR','Descanso','Vol. sesión','Observación'];
+      const widths = [6, 8, 8, 6, 28, 8, 9, 9, 9, 9, 7, 11, 12, 32];
+      ws.columns = headers.map((h,i)=>({ header:h, key:`c${i}`, width:widths[i] }));
+      styleHeaderRow(ws.getRow(1));
+
+      rowsData.forEach((rd, idx) => {
+        const row = ws.addRow(rd);
+        row.eachCell((cell, colNum) => {
+          cell.font = { size:10, name:'Calibri' };
+          cell.alignment = { vertical:'middle', horizontal: colNum===5?'left':'center', wrapText:true };
+          cell.border = borderAll;
+        });
+        if(idx % 2 === 1){
+          row.eachCell(cell => { cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.altRow} }; });
+        }
+        row.getCell(5).font = { bold:true, size:10, name:'Calibri' };
+      });
+    }
   }
 
-  // 6) Evaluaciones
+  // ======================================================================
+  // HOJA 6: EVALUACIONES
+  // ======================================================================
   if(opts.includes('evaluaciones') && plan.evaluations && plan.evaluations.length){
-    const header = ['Nº','Fecha','Peso (kg)','Grasa (%)','Masa muscular (kg)','Bíceps (cm)','Pecho (cm)','Cintura (cm)','Cadera (cm)','Muslo (cm)','Gemelo (cm)','Observación'];
-    const rows = [header, ...plan.evaluations.map(e => [
-      e.num||'', e.date||'', e.peso||'', e.grasa||'', e.masaMuscular||'', e.biceps||'', e.pecho||'', e.cintura||'', e.cadera||'', e.muslo||'', e.gemelo||'', e.observations||''
-    ])];
-    addSheet(rows, 'Evaluaciones', [5, 12, 10, 10, 18, 11, 11, 11, 11, 11, 11, 35]);
+    const ws = wb.addWorksheet('Evaluaciones', {
+      views: [{ state:'frozen', ySplit:1, showGridLines:false }]
+    });
+    const headers = ['Nº','Fecha','Peso (kg)','Grasa (%)','Masa muscular (kg)','Bíceps (cm)','Pecho (cm)','Cintura (cm)','Cadera (cm)','Muslo (cm)','Gemelo (cm)','Observación'];
+    const widths = [5, 13, 11, 10, 18, 11, 11, 11, 11, 11, 11, 35];
+    ws.columns = headers.map((h,i)=>({ header:h, key:`c${i}`, width:widths[i] }));
+    styleHeaderRow(ws.getRow(1));
+
+    plan.evaluations.forEach((e, idx) => {
+      const row = ws.addRow([
+        e.num||'', e.date||'', e.peso||0, e.grasa||0, e.masaMuscular||0,
+        e.biceps||0, e.pecho||0, e.cintura||0, e.cadera||0, e.muslo||0, e.gemelo||0,
+        e.observations||''
+      ]);
+      row.eachCell((cell, colNum) => {
+        cell.font = { size:10, name:'Calibri' };
+        cell.alignment = { vertical:'middle', horizontal: colNum===12?'left':'center', wrapText:true };
+        cell.border = borderAll;
+      });
+      if(idx % 2 === 1){
+        row.eachCell(cell => { cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.altRow} }; });
+      }
+      // Formato numérico para medidas
+      [3,4,5,6,7,8,9,10,11].forEach(c => { row.getCell(c).numFmt = '0.0'; });
+      row.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:COLORS.primaryL} };
+      row.getCell(1).font = { bold:true, size:11, color:{argb:COLORS.primary}, name:'Calibri' };
+    });
   }
 
-  if(wb.SheetNames.length === 0){ toast('No hay datos seleccionados para exportar','error'); return; }
+  if(wb.worksheets.length === 0){ toast('No hay datos seleccionados para exportar','error'); return; }
+
   const fname = `Macrociclo_${(ath.name||'atleta').replace(/[^a-zA-Z0-9]+/g,'_')}_${TODAY}.xlsx`;
   try {
-    XLSX.writeFile(wb, fname);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     closeModal();
-    toast(`Exportado: ${fname} (${wb.SheetNames.length} hoja${wb.SheetNames.length!==1?'s':''})`);
+    toast(`Exportado: ${fname} (${wb.worksheets.length} hoja${wb.worksheets.length!==1?'s':''})`);
   } catch(e){
+    console.error(e);
     toast('Error al generar Excel: '+e.message,'error');
   }
 }
