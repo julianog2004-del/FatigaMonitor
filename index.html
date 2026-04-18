@@ -301,6 +301,15 @@
     .vol-reset-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:10px;border-radius:2px;transition:all .15s}
     .vol-reset-btn:hover{color:var(--primary);background:rgba(139,115,64,.08)}
     .vol-input-manual{color:var(--primary) !important;border-color:var(--primary) !important}
+    /* Dropdown genérico (usado por el botón Exportar) */
+    .dd-wrap{position:relative;display:inline-block}
+    .dd-menu{position:absolute;top:calc(100% + 4px);right:0;min-width:200px;background:var(--card);border:1px solid var(--border);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1500;padding:6px;display:none;flex-direction:column;gap:2px}
+    .dd-menu.open{display:flex}
+    .dd-item{width:100%;text-align:left;padding:9px 12px;font-size:12px;background:transparent;border:none;border-radius:3px;cursor:pointer;color:var(--text);font-family:var(--sans);display:flex;align-items:center;gap:10px;transition:background .15s}
+    .dd-item:hover{background:rgba(139,115,64,.08);color:var(--primary)}
+    .dd-item i{font-size:15px;width:20px;text-align:center}
+    .dd-item .dd-sub{display:block;font-size:10px;color:var(--muted);margin-top:1px;font-weight:400}
+    .dd-item .dd-label{font-weight:600;font-size:12px;line-height:1.2}
     /* EVALUACION TABLE */
     .eval-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
     .eval-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:20px}
@@ -1664,7 +1673,13 @@ function viewMacrociclo(){
         <button class="btn btn-primary btn-sm" onclick="showAddWeeksModal(${selAth})"><i class="fas fa-plus"></i> Añadir Semanas</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMesoModal(${selAth})"><i class="fas fa-plus"></i> Mesociclo</button>
         <button class="btn btn-secondary btn-sm" onclick="showCreateMacroModal(${selAth})"><i class="fas fa-sync-alt"></i> Nuevo Macrociclo</button>
-        <button class="btn btn-secondary btn-sm" onclick="showExportExcelModal(${selAth})" title="Exportar a Excel"><i class="fas fa-file-excel"></i> Exportar</button>
+        <span class="dd-wrap">
+          <button class="btn btn-secondary btn-sm" onclick="toggleExportDropdown(event, ${selAth})" title="Exportar"><i class="fas fa-download"></i> Exportar <i class="fas fa-caret-down" style="margin-left:4px;font-size:10px"></i></button>
+          <div class="dd-menu" id="exportDropdown-${selAth}">
+            <button class="dd-item" onclick="closeExportDropdown();showExportModal(${selAth},'excel')"><i class="fas fa-file-excel" style="color:#217346"></i><span><span class="dd-label">Excel (.xlsx)</span><span class="dd-sub">Hojas con estilo y colores</span></span></button>
+            <button class="dd-item" onclick="closeExportDropdown();showExportModal(${selAth},'pdf')"><i class="fas fa-file-pdf" style="color:#d04a3a"></i><span><span class="dd-label">PDF</span><span class="dd-sub">Imprimir / guardar como PDF</span></span></button>
+          </div>
+        </span>
         <button class="btn btn-sm" style="background:var(--warn);color:#fff;border-color:var(--warn)" onclick="confirmDeleteMacrociclo(${selAth})" title="Vaciar macrociclo (conserva tablas, borra datos)"><i class="fas fa-eraser"></i> Vaciar</button>
       </div>
     </div>
@@ -6657,12 +6672,38 @@ function deleteMacrociclo(athId){
   navigate('coach-macrociclo',{planAthlete:athId});
 }
 
-// ===== EXPORTAR MACROCICLO A EXCEL =====
-function showExportExcelModal(athId){
+// ===== EXPORTAR MACROCICLO (EXCEL / PDF) =====
+function toggleExportDropdown(ev, athId){
+  if(ev){ ev.stopPropagation(); }
+  const menu = document.getElementById('exportDropdown-'+athId);
+  if(!menu) return;
+  // Cerrar cualquier otro menú abierto
+  document.querySelectorAll('.dd-menu.open').forEach(m => { if(m!==menu) m.classList.remove('open'); });
+  const wasOpen = menu.classList.contains('open');
+  menu.classList.toggle('open');
+  if(!wasOpen){
+    // Handler para cerrar al clicar fuera
+    setTimeout(()=>{
+      const closer = (e)=>{
+        if(!menu.contains(e.target)){
+          menu.classList.remove('open');
+          document.removeEventListener('click', closer);
+        }
+      };
+      document.addEventListener('click', closer);
+    }, 0);
+  }
+}
+function closeExportDropdown(){
+  document.querySelectorAll('.dd-menu.open').forEach(m => m.classList.remove('open'));
+}
+
+function showExportModal(athId, format){
+  format = format || 'excel';
   const ath = getAthleteById(athId);
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(!plan||!ath){ toast('No hay macrociclo para exportar','error'); return; }
-  if(typeof ExcelJS === 'undefined'){ toast('Librería ExcelJS no cargada. Comprueba tu conexión.','error'); return; }
+  if(format==='excel' && typeof ExcelJS === 'undefined'){ toast('Librería ExcelJS no cargada. Comprueba tu conexión.','error'); return; }
   // Contar datos disponibles
   const nWeeks = (plan.weeks||[]).length;
   const nMeso = (plan.mesociclos||[]).length;
@@ -6674,9 +6715,20 @@ function showExportExcelModal(athId){
     return s + arr.reduce((ss, ses) => ss + (ses.exercises||[]).filter(e=>e.name).length, 0);
   }, 0);
   const nEvals = (plan.evaluations||[]).filter(e=>e.date||e.peso).length;
+
+  const isPdf = format==='pdf';
+  const title = isPdf ? 'Exportar a PDF' : 'Exportar a Excel';
+  const hint = isPdf
+    ? 'Selecciona las secciones que quieres incluir en el PDF. Se abrirá el diálogo de impresión del navegador — elige "Guardar como PDF" para descargarlo.'
+    : 'Selecciona las hojas que quieres incluir en el archivo Excel. Cada opción genera una hoja separada.';
+  const btnAction = isPdf
+    ? `<button class="btn btn-primary" onclick="exportMacrocicloToPdf(${athId})"><i class="fas fa-print"></i> Generar PDF</button>`
+    : `<button class="btn btn-primary" onclick="exportMacrocicloToExcel(${athId})"><i class="fas fa-download"></i> Descargar .xlsx</button>`;
+  const labelSuffix = isPdf ? 'sección' : 'hoja';
+
   showModal(`
-    <div class="modal-hdr"><div class="modal-title">Exportar a Excel</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
-    <p style="font-size:12px;color:var(--muted);margin:-4px 0 14px">Selecciona las hojas que quieres incluir en el archivo Excel. Cada opción genera una hoja separada.</p>
+    <div class="modal-hdr"><div class="modal-title">${title}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <p style="font-size:12px;color:var(--muted);margin:-4px 0 14px">${hint}</p>
     <div style="display:flex;flex-direction:column;gap:8px">
       <label class="export-opt" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--card2)">
         <input type="checkbox" class="exportOpt" value="resumen" checked>
@@ -6705,10 +6757,13 @@ function showExportExcelModal(athId){
     </div>
     <div class="flex gap-8 mt-16" style="justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="exportMacrocicloToExcel(${athId})"><i class="fas fa-download"></i> Descargar .xlsx</button>
+      ${btnAction}
     </div>
   `);
 }
+
+// Retrocompatibilidad
+function showExportExcelModal(athId){ return showExportModal(athId, 'excel'); }
 
 async function exportMacrocicloToExcel(athId){
   const ath = getAthleteById(athId);
@@ -7132,6 +7187,343 @@ async function exportMacrocicloToExcel(athId){
     console.error(e);
     toast('Error al generar Excel: '+e.message,'error');
   }
+}
+
+// ===== EXPORTAR MACROCICLO A PDF =====
+function escHtml(s){
+  if(s===null||s===undefined) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function exportMacrocicloToPdf(athId){
+  const ath = getAthleteById(athId);
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan||!ath){ toast('No se pudo exportar','error'); return; }
+  const opts = Array.from(document.querySelectorAll('.exportOpt:checked')).map(cb=>cb.value);
+  if(!opts.length){ toast('Selecciona al menos una sección','error'); return; }
+
+  try{
+    const html = buildPdfHtml(ath, plan, opts);
+    const w = window.open('', '_blank', 'width=980,height=800');
+    if(!w){ toast('El navegador bloqueó la ventana emergente. Permite popups e inténtalo de nuevo.','error'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    // Esperar a que cargue fuentes / layout antes de imprimir
+    const tryPrint = () => {
+      try {
+        w.focus();
+        w.print();
+      } catch(err){ console.error('print error', err); }
+    };
+    if(w.document.readyState === 'complete'){
+      setTimeout(tryPrint, 300);
+    } else {
+      w.addEventListener('load', () => setTimeout(tryPrint, 300));
+    }
+    closeModal();
+    toast(`PDF preparado — elige "Guardar como PDF" en el diálogo`);
+  } catch(e){
+    console.error(e);
+    toast('Error al generar PDF: '+e.message,'error');
+  }
+}
+
+function buildPdfHtml(ath, plan, opts){
+  const MICRO_LBL = {
+    gradual:'Gradual', corriente:'Corriente', choque:'Choque',
+    restablecimiento:'Restablecimiento', competicion:'Competición',
+    aproximacion:'Aproximación', control:'Control'
+  };
+  const MICRO_COLOR = {
+    gradual:'#2D7A5C', corriente:'#5B4F8A', choque:'#A04040',
+    restablecimiento:'#4A7A5A', competicion:'#9E8035',
+    aproximacion:'#C47820', control:'#7B6EAA'
+  };
+  const PERIODO_COLOR = {
+    'Preparatorio':'#2D7A5C', 'Competitivo':'#9E8035', 'Transitorio':'#7B6EAA'
+  };
+
+  const today = new Date().toLocaleDateString('es-ES', {year:'numeric',month:'long',day:'numeric'});
+  let body = '';
+
+  // ====== RESUMEN ======
+  if(opts.includes('resumen')){
+    const sport = ath.sport || '—';
+    const macroType = plan.macroType ? ({tradicional:'Tradicional',atr:'ATR','tradicional-doble':'Tradicional doble',bloques:'Bloques','larga-tradicional':'Larga tradicional','larga-atr':'Larga ATR'}[plan.macroType]||plan.macroType) : '—';
+    const comp = plan.competitionDate ? new Date(plan.competitionDate).toLocaleDateString('es-ES') : '—';
+    const start = plan.startDate ? new Date(plan.startDate).toLocaleDateString('es-ES') : '—';
+    const nWeeks = (plan.weeks||[]).length;
+    const nMeso = (plan.mesociclos||[]).length;
+    const goal = plan.mainGoal || plan.goal || '—';
+    const obs = plan.notes || plan.observations || '';
+    body += `
+      <section class="pdf-sect pdf-avoid-break">
+        <h2>Resumen</h2>
+        <div class="pdf-grid2">
+          <div class="pdf-kv"><span class="k">Atleta</span><span class="v">${escHtml(ath.name||'—')}</span></div>
+          <div class="pdf-kv"><span class="k">Edad · Peso</span><span class="v">${escHtml(ath.age||'—')} años · ${escHtml(ath.weight||'—')} kg</span></div>
+          <div class="pdf-kv"><span class="k">Deporte</span><span class="v">${escHtml(sport)}</span></div>
+          <div class="pdf-kv"><span class="k">Macrociclo</span><span class="v">${escHtml(plan.title||plan.name||'—')}</span></div>
+          <div class="pdf-kv"><span class="k">Tipo de periodización</span><span class="v">${escHtml(macroType)}</span></div>
+          <div class="pdf-kv"><span class="k">Fecha de inicio</span><span class="v">${escHtml(start)}</span></div>
+          <div class="pdf-kv"><span class="k">Competición principal</span><span class="v">${escHtml(comp)}</span></div>
+          <div class="pdf-kv"><span class="k">Duración</span><span class="v">${nWeeks} semanas · ${nMeso} mesociclos</span></div>
+          <div class="pdf-kv pdf-col2"><span class="k">Objetivo principal</span><span class="v">${escHtml(goal)}</span></div>
+        </div>
+        ${obs ? `<div class="pdf-note"><strong>Observaciones:</strong> ${escHtml(obs)}</div>` : ''}
+      </section>`;
+  }
+
+  // ====== MACROCICLO (52 semanas) ======
+  if(opts.includes('macrociclo') && (plan.weeks||[]).length){
+    const rows = plan.weeks.map((w,i)=>{
+      const tipoColor = MICRO_COLOR[w.tipo] || '#888';
+      const perColor = PERIODO_COLOR[w.periodo] || '#555';
+      const tipoLbl = w.tipo ? (MICRO_LBL[w.tipo] || w.tipo) : '—';
+      return `<tr>
+        <td class="c">${i+1}</td>
+        <td class="c">${escHtml(w.date||'—')}</td>
+        <td style="color:${tipoColor};font-weight:600">${escHtml(tipoLbl)}</td>
+        <td class="c">${w.volumen!==undefined&&w.volumen!==''?escHtml(w.volumen):'—'}</td>
+        <td class="c">${w.intensidad!==undefined&&w.intensidad!==''?escHtml(w.intensidad):'—'}</td>
+        <td>${escHtml(w.mesociclo||'—')}</td>
+        <td style="color:${perColor};font-weight:600">${escHtml(w.periodo||'—')}</td>
+        <td>${escHtml(w.etapa||'—')}</td>
+        <td>${escHtml(w.competicion||'')}</td>
+      </tr>`;
+    }).join('');
+    body += `
+      <section class="pdf-sect pdf-page-break">
+        <h2>Macrociclo (${plan.weeks.length} semanas)</h2>
+        <table class="pdf-table pdf-zebra">
+          <thead><tr>
+            <th>#</th><th>Fecha</th><th>Tipo</th><th>Vol.</th><th>Int.</th>
+            <th>Mesociclo</th><th>Periodo</th><th>Etapa</th><th>Comp.</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>`;
+  }
+
+  // ====== MESOCICLOS ======
+  if(opts.includes('mesociclos') && (plan.mesociclos||[]).length){
+    const rows = plan.mesociclos.map((m,i)=>{
+      const micros = (m.microcycles||[]).length;
+      const typeCounts = {};
+      (m.microcycles||[]).forEach(mc => { typeCounts[mc.type] = (typeCounts[mc.type]||0)+1; });
+      const dominant = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1])[0];
+      const domLbl = dominant ? (MICRO_LBL[dominant[0]] || dominant[0]) : '—';
+      const domColor = dominant ? (MICRO_COLOR[dominant[0]] || '#555') : '#555';
+      const avgVol = (m.microcycles||[]).reduce((s,mc)=>s+(+mc.volume||0),0) / (micros||1);
+      const avgInt = (m.microcycles||[]).reduce((s,mc)=>s+(+mc.intensity||0),0) / (micros||1);
+      return `<tr>
+        <td class="c">${i+1}</td>
+        <td>${escHtml(m.name||'—')}</td>
+        <td class="c">${micros}</td>
+        <td style="color:${domColor};font-weight:600">${escHtml(domLbl)}</td>
+        <td class="c">${avgVol ? avgVol.toFixed(1) : '—'}</td>
+        <td class="c">${avgInt ? avgInt.toFixed(1) : '—'}</td>
+        <td>${escHtml(m.observations||'')}</td>
+      </tr>`;
+    }).join('');
+    body += `
+      <section class="pdf-sect pdf-page-break">
+        <h2>Mesociclos (${plan.mesociclos.length})</h2>
+        <table class="pdf-table pdf-zebra">
+          <thead><tr>
+            <th>#</th><th>Nombre</th><th>Micros</th><th>Tipo dominante</th>
+            <th>Vol. medio</th><th>Int. media</th><th>Observaciones</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>`;
+  }
+
+  // ====== MICROCICLOS Y SESIONES ======
+  if(opts.includes('microciclos') && (plan.mesociclos||[]).length){
+    const DAYS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    const DAY_KEYS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+    let rows = '';
+    plan.mesociclos.forEach((m, mi) => {
+      (m.microcycles||[]).forEach((mc, ci) => {
+        const tColor = MICRO_COLOR[mc.type] || '#555';
+        const tLbl = MICRO_LBL[mc.type] || mc.type || '—';
+        DAY_KEYS.forEach((dk, di) => {
+          const sessions = (mc.sessions && mc.sessions[dk]) || [];
+          if(!sessions.length){
+            rows += `<tr>
+              <td>${escHtml(m.name||('Mes '+(mi+1)))}</td>
+              <td class="c">${ci+1}</td>
+              <td style="color:${tColor};font-weight:600">${escHtml(tLbl)}</td>
+              <td class="c">${DAYS[di]}</td>
+              <td class="c" colspan="3" style="color:#999">—</td>
+            </tr>`;
+          } else {
+            sessions.forEach((s, si) => {
+              rows += `<tr>
+                <td>${escHtml(m.name||('Mes '+(mi+1)))}</td>
+                <td class="c">${ci+1}</td>
+                <td style="color:${tColor};font-weight:600">${escHtml(tLbl)}</td>
+                <td class="c">${DAYS[di]}${sessions.length>1?` #${si+1}`:''}</td>
+                <td>${escHtml(s.type||'—')}</td>
+                <td class="c">${s.volume!==undefined&&s.volume!==''?escHtml(s.volume):'—'}</td>
+                <td class="c">${s.intensity!==undefined&&s.intensity!==''?escHtml(s.intensity):'—'}</td>
+              </tr>`;
+            });
+          }
+        });
+      });
+    });
+    body += `
+      <section class="pdf-sect pdf-page-break">
+        <h2>Microciclos y sesiones</h2>
+        <table class="pdf-table pdf-zebra">
+          <thead><tr>
+            <th>Mesociclo</th><th>Micro</th><th>Tipo</th><th>Día</th>
+            <th>Tipo sesión</th><th>Vol.</th><th>Int.</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>`;
+  }
+
+  // ====== SESIONES DETALLADAS ======
+  if(opts.includes('detalladas') && plan.detailedSessions){
+    const keys = Object.keys(plan.detailedSessions).sort();
+    let blocks = '';
+    keys.forEach(k => {
+      const arr = plan.detailedSessions[k] || [];
+      arr.forEach((ses, idx) => {
+        const exs = (ses.exercises||[]).filter(e=>e.name);
+        if(!exs.length) return;
+        const rows = exs.map((e,ei)=>`<tr>
+          <td class="c">${ei+1}</td>
+          <td>${escHtml(e.name||'')}</td>
+          <td class="c">${escHtml(e.kg||'')}</td>
+          <td class="c">${escHtml(e.s1||'')}</td>
+          <td class="c">${escHtml(e.s2||'')}</td>
+          <td class="c">${escHtml(e.s3||'')}</td>
+          <td class="c">${escHtml(e.s4||'')}</td>
+          <td class="c">${escHtml(e.rir||'')}</td>
+          <td class="c">${escHtml(e.descanso||'')}</td>
+        </tr>`).join('');
+        const volTxt = ses.volume!==undefined && ses.volume!=='' ? ses.volume : (typeof computeSesVolume==='function' ? computeSesVolume(ses) : '—');
+        blocks += `
+          <div class="pdf-sess pdf-avoid-break">
+            <div class="pdf-sess-hdr">
+              <span class="pdf-sess-title">${escHtml(k)} · Sesión ${idx+1}</span>
+              <span class="pdf-sess-vol">Vol: <strong>${escHtml(volTxt)}</strong>${ses.volumeManual?' (manual)':''}</span>
+            </div>
+            <table class="pdf-table pdf-zebra pdf-small">
+              <thead><tr>
+                <th>#</th><th>Ejercicio</th><th>Kg</th>
+                <th>S1</th><th>S2</th><th>S3</th><th>S4</th>
+                <th>RIR</th><th>Desc.</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      });
+    });
+    if(blocks){
+      body += `<section class="pdf-sect pdf-page-break"><h2>Sesiones detalladas</h2>${blocks}</section>`;
+    }
+  }
+
+  // ====== EVALUACIONES ======
+  if(opts.includes('evaluaciones') && (plan.evaluations||[]).length){
+    const evs = plan.evaluations.filter(e => e.date || e.peso);
+    if(evs.length){
+      const rows = evs.map(e => `<tr>
+        <td>${escHtml(e.date||'—')}</td>
+        <td class="c">${escHtml(e.peso||'')}</td>
+        <td class="c">${escHtml(e.grasa||'')}</td>
+        <td class="c">${escHtml(e.musculo||'')}</td>
+        <td class="c">${escHtml(e.cintura||'')}</td>
+        <td class="c">${escHtml(e.cadera||'')}</td>
+        <td>${escHtml(e.notas||'')}</td>
+      </tr>`).join('');
+      body += `
+        <section class="pdf-sect pdf-page-break">
+          <h2>Evaluaciones</h2>
+          <table class="pdf-table pdf-zebra">
+            <thead><tr>
+              <th>Fecha</th><th>Peso (kg)</th><th>% Grasa</th><th>% Músculo</th>
+              <th>Cintura</th><th>Cadera</th><th>Notas</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </section>`;
+    }
+  }
+
+  const title = `Macrociclo — ${ath.name||'Atleta'}`;
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>${escHtml(title)}</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;color:#222;background:#fff;font-size:11px;line-height:1.4;padding:24px}
+  h1{margin:0 0 4px;font-size:22px;color:#8B7340;letter-spacing:.5px}
+  h2{margin:18px 0 8px;font-size:15px;color:#5C4A2A;border-bottom:2px solid #8B7340;padding-bottom:4px}
+  .pdf-header{border-bottom:3px solid #8B7340;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end}
+  .pdf-header .meta{font-size:10px;color:#666;text-align:right}
+  .pdf-sect{margin-bottom:16px}
+  .pdf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:6px}
+  .pdf-kv{display:flex;justify-content:space-between;padding:5px 8px;background:#faf7f1;border-left:3px solid #8B7340;border-radius:0 3px 3px 0}
+  .pdf-kv .k{color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .pdf-kv .v{color:#222;font-weight:500;text-align:right}
+  .pdf-col2{grid-column:1/-1}
+  .pdf-note{margin-top:10px;padding:8px 10px;background:#f4efe4;border-left:3px solid #9E8035;border-radius:0 3px 3px 0;font-size:10.5px}
+  .pdf-table{width:100%;border-collapse:collapse;margin-top:4px}
+  .pdf-table th{background:#8B7340;color:#fff;font-weight:700;text-align:left;padding:6px 7px;font-size:10.5px;letter-spacing:.2px;border:1px solid #6b5930}
+  .pdf-table td{padding:5px 7px;border:1px solid #d9d2bf;vertical-align:top;font-size:10.5px}
+  .pdf-table td.c{text-align:center}
+  .pdf-zebra tbody tr:nth-child(even) td{background:#faf7f1}
+  .pdf-small th,.pdf-small td{font-size:10px;padding:4px 6px}
+  .pdf-sess{margin:10px 0 14px}
+  .pdf-sess-hdr{display:flex;justify-content:space-between;align-items:center;background:#ede1c9;padding:6px 10px;border-radius:3px 3px 0 0;border:1px solid #d9d2bf;border-bottom:none}
+  .pdf-sess-title{font-weight:700;color:#5C4A2A;font-size:12px}
+  .pdf-sess-vol{font-size:10.5px;color:#555}
+  .pdf-sess table{margin-top:0}
+  @media print{
+    body{padding:14px}
+    .pdf-page-break{page-break-before:always}
+    .pdf-avoid-break{page-break-inside:avoid}
+    .pdf-header{page-break-after:avoid}
+    table{page-break-inside:auto}
+    tr{page-break-inside:avoid;page-break-after:auto}
+    thead{display:table-header-group}
+  }
+  @page{size:A4;margin:12mm}
+</style>
+</head>
+<body>
+  <div class="pdf-header">
+    <div>
+      <h1>Macrociclo</h1>
+      <div style="font-size:13px;color:#5C4A2A;font-weight:600">${escHtml(ath.name||'Atleta')} · ${escHtml(plan.title||plan.name||'—')}</div>
+    </div>
+    <div class="meta">
+      <div><strong>FatigaMonitor Pro</strong></div>
+      <div>Generado: ${escHtml(today)}</div>
+    </div>
+  </div>
+  ${body || '<p style="color:#888;text-align:center;padding:40px 0">No hay contenido para mostrar — selecciona al menos una sección con datos.</p>'}
+  <div style="margin-top:24px;padding-top:10px;border-top:1px solid #d9d2bf;font-size:9px;color:#999;text-align:center">
+    FatigaMonitor Pro · Informe generado automáticamente — ${escHtml(today)}
+  </div>
+</body>
+</html>`;
 }
 
 // ===== RENAME MESOCICLO =====
