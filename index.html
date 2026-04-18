@@ -287,6 +287,20 @@
     .ses-exercises tr:last-child td{border-bottom:none}
     .ses-exercises input{width:100%;padding:5px 6px;background:var(--bg);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:11px;font-family:var(--mono);text-align:center;transition:border-color .2s}
     .ses-exercises input:focus{outline:none;border-color:var(--primary);background:rgba(139,115,64,.03)}
+    /* Botón de eliminar ejercicio (columna extra al final de cada fila) */
+    .ses-exercises .btn-row-del{background:transparent;border:1px solid transparent;color:var(--muted);width:22px;height:22px;border-radius:2px;cursor:pointer;padding:0;font-size:10px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+    .ses-exercises .btn-row-del:hover{background:rgba(160,64,64,.1);color:var(--danger);border-color:rgba(160,64,64,.35)}
+    .ses-exercises .td-del{width:30px;padding:4px !important;text-align:center}
+    /* Botón "añadir ejercicio" */
+    .ses-add-ex{margin-top:8px;display:flex;justify-content:flex-end;gap:6px}
+    .ses-add-ex button{font-family:var(--mono);font-size:10px;padding:5px 12px;background:var(--bg);border:1px dashed var(--border);border-radius:3px;color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:.3px}
+    .ses-add-ex button:hover{border-color:var(--primary);color:var(--primary);border-style:solid;background:rgba(139,115,64,.04)}
+    /* Vol — indicador AUTO / botón recalcular */
+    .vol-wrap{display:inline-flex;align-items:center;gap:4px}
+    .vol-auto-badge{font-family:var(--mono);font-size:9px;color:var(--ok);background:rgba(74,122,90,.12);padding:1px 5px;border-radius:2px;letter-spacing:.5px}
+    .vol-reset-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:10px;border-radius:2px;transition:all .15s}
+    .vol-reset-btn:hover{color:var(--primary);background:rgba(139,115,64,.08)}
+    .vol-input-manual{color:var(--primary) !important;border-color:var(--primary) !important}
     /* EVALUACION TABLE */
     .eval-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
     .eval-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:20px}
@@ -2335,7 +2349,28 @@ function viewSesionesDetail(){
         <td><input value="${ex.s4}" placeholder="—" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'s4',this.value)"></td>
         <td><input value="${ex.rir}" placeholder="RIR" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'rir',this.value)"></td>
         <td><input value="${ex.descanso}" placeholder="min" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'descanso',this.value)"></td>
+        <td class="td-del"><button class="btn-row-del" onclick="removeSesExercise(${selAth},'${key}',${si},${ei})" title="Eliminar este ejercicio"><i class="fas fa-times"></i></button></td>
       </tr>`).join('');
+
+    // Volumen: calculado automáticamente salvo que el usuario lo haya escrito
+    // manualmente (flag volumeManual). El badge "AUTO" + el botón ↻ aparecen
+    // solo cuando está en modo auto/manual según corresponda.
+    const autoVol = computeSesVolume(ses);
+    const volIsManual = !!ses.volumeManual;
+    const volDisplay = volIsManual ? (ses.volume||'') : (autoVol || '');
+    const volInputHTML = `
+      <span class="vol-wrap" style="font-size:12px;color:var(--muted)">Vol:
+        <input class="inline-edit${volIsManual?' vol-input-manual':''}"
+               data-vol-input="${key}-${si}"
+               style="width:70px;text-align:center;font-weight:600"
+               value="${volDisplay}"
+               placeholder="—"
+               title="${volIsManual?'Volumen editado manualmente — vacíalo o pulsa ↻ para volver al cálculo automático':'Volumen calculado automáticamente (kg × repeticiones de cada serie)'}"
+               onchange="saveSesField(${selAth},'${key}',${si},'volume',this.value)">
+        ${volIsManual
+          ? `<button class="vol-reset-btn" onclick="resetSesVolume(${selAth},'${key}',${si})" title="Volver al cálculo automático"><i class="fas fa-sync-alt"></i></button>`
+          : `<span class="vol-auto-badge" title="Volumen = Σ (kg × repeticiones)">AUTO</span>`}
+      </span>`;
 
     return `
       <div class="ses-card">
@@ -2345,13 +2380,16 @@ function viewSesionesDetail(){
             ${toggleBtn}
             <button class="copy-btn" onclick="copyDetailedSession(${selAth},'${key}',${si},'${dayLabels[si]}')"><i class="fas fa-copy"></i> Copiar</button>
             ${CLIPBOARD.type==='detailedSession'?`<button class="paste-btn" onclick="pasteDetailedSession(${selAth},'${key}',${si})"><i class="fas fa-paste"></i> Pegar</button>`:''}
-            <span style="font-size:12px;color:var(--muted)">Vol: <input class="inline-edit" style="width:60px;text-align:center;font-weight:600" value="${ses.volume||''}" placeholder="—" onchange="saveSesField(${selAth},'${key}',${si},'volume',this.value)"></span>
+            ${volInputHTML}
           </span>
         </div>
         <div class="tbl-wrap"><table class="ses-exercises">
-          <thead><tr><th>Ejercicio</th><th>Kg</th><th>Serie 1</th><th>Serie 2</th><th>Serie 3</th><th>Serie 4</th><th>RIR</th><th>Desc.</th></tr></thead>
+          <thead><tr><th>Ejercicio</th><th>Kg</th><th>Serie 1</th><th>Serie 2</th><th>Serie 3</th><th>Serie 4</th><th>RIR</th><th>Desc.</th><th></th></tr></thead>
           <tbody>${exRows}</tbody>
         </table></div>
+        <div class="ses-add-ex">
+          <button onclick="addSesExercise(${selAth},'${key}',${si})" title="Añadir una fila de ejercicio"><i class="fas fa-plus" style="margin-right:4px"></i>Añadir ejercicio</button>
+        </div>
         <div style="margin-top:8px"><textarea class="inline-edit" style="width:100%;font-size:11px;min-height:24px" placeholder="Observaciones..." onchange="saveSesField(${selAth},'${key}',${si},'observations',this.value)">${ses.observations||''}</textarea></div>
       </div>`;
   }).join('');
@@ -2366,9 +2404,65 @@ function viewSesionesDetail(){
         <div class="form-group" style="margin:0;flex:1"><label style="margin-bottom:4px">Mesociclo</label><select onchange="navigate('coach-sesiones-detail',{planAthlete:${selAth},mesoNum:+this.value,weekNum:${selWeek}})" style="padding:8px">${plan.mesociclos.map(m=>`<option value="${m.num}" ${m.num===selMeso?'selected':''}>${m.name} (Mes ${m.num})</option>`).join('')}</select></div>
         <div class="form-group" style="margin:0;flex:1"><label style="margin-bottom:4px">Microciclo (Semana)</label><select onchange="navigate('coach-sesiones-detail',{planAthlete:${selAth},mesoNum:${selMeso},weekNum:+this.value})" style="padding:8px">${[1,2,3,4].map(w=>`<option value="${w}" ${w===selWeek?'selected':''}>Semana ${w}</option>`).join('')}</select></div>
       </div>
-      <div class="info-box mb-16"><i class="fas fa-edit"></i>Microciclo ${selWeek} del Mesociclo ${selMeso} (${meso?meso.name:''}) — Rellena ejercicios con formato "Reps × Kg" en cada serie.</div>
+      <div class="info-box mb-16"><i class="fas fa-edit"></i>Microciclo ${selWeek} del Mesociclo ${selMeso} (${meso?meso.name:''}) — Rellena ejercicios con formato "Reps × Kg" (o solo reps) en cada serie. <strong>Vol.</strong> se calcula automáticamente como Σ(kg × reps); puedes sobreescribirlo y volver al cálculo con el botón ↻. Usa <strong>+ Añadir ejercicio</strong> para sumar filas o la <i class="fas fa-times"></i> al final de cada fila para quitarlas.</div>
       ${sessionsHTML}
     </div>`;
+}
+
+// ---- Helpers para sesiones detalladas ----
+// Parsea una celda de serie. Acepta "12", "12×80", "12x80", "12 x 80" y
+// extrae las repeticiones y (opcionalmente) la carga específica de la serie.
+// Si no hay carga en la celda, usa la kg de la fila.
+function parseRepsLoad(seriesStr, rowKg){
+  const s = (seriesStr||'').toString().trim();
+  if(!s) return {reps:0, load:0};
+  const mx = s.match(/^\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)/i);
+  if(mx) return {reps:parseFloat(mx[1].replace(',','.')), load:parseFloat(mx[2].replace(',','.'))};
+  const m = s.match(/^\s*(\d+(?:[.,]\d+)?)/);
+  if(m) return {reps:parseFloat(m[1].replace(',','.')), load:parseFloat(rowKg)||0};
+  return {reps:0, load:0};
+}
+// Volumen = Σ(kg × repeticiones) de todas las series de todos los ejercicios.
+// Se ignoran las filas sin kg válidos y las series vacías.
+function computeSesVolume(ses){
+  if(!ses || !ses.exercises) return 0;
+  let total = 0;
+  ses.exercises.forEach(ex => {
+    const rowKg = parseFloat(ex.kg) || 0;
+    ['s1','s2','s3','s4'].forEach(k => {
+      const {reps, load} = parseRepsLoad(ex[k], rowKg);
+      total += reps * load;
+    });
+  });
+  return Math.round(total);
+}
+function addSesExercise(athId, key, sesIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  plan.detailedSessions[key][sesIdx].exercises.push({name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''});
+  save();
+  navigate(S.view, S.params);
+}
+function removeSesExercise(athId, key, sesIdx, exIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const exs = plan.detailedSessions[key][sesIdx].exercises;
+  if(exs.length<=1){
+    // Nunca dejar la tabla sin filas — vaciamos la única fila en su lugar.
+    exs[0] = {name:'',kg:'',s1:'',s2:'',s3:'',s4:'',rir:'',descanso:''};
+  } else {
+    exs.splice(exIdx,1);
+  }
+  save();
+  navigate(S.view, S.params);
+}
+function resetSesVolume(athId, key, sesIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  plan.detailedSessions[key][sesIdx].volume = '';
+  plan.detailedSessions[key][sesIdx].volumeManual = false;
+  save();
+  navigate(S.view, S.params);
 }
 
 function saveSesEx(athId, key, sesIdx, exIdx, field, value){
@@ -2376,12 +2470,32 @@ function saveSesEx(athId, key, sesIdx, exIdx, field, value){
   if(plan && plan.detailedSessions && plan.detailedSessions[key]){
     plan.detailedSessions[key][sesIdx].exercises[exIdx][field] = value;
     save();
+    // Si el volumen no está marcado como manual, recalcular y actualizar el
+    // input de volumen en vivo (sin re-render para no perder el foco).
+    const ses = plan.detailedSessions[key][sesIdx];
+    if(!ses.volumeManual){
+      const vol = computeSesVolume(ses);
+      const volInput = document.querySelector(`input[data-vol-input="${key}-${sesIdx}"]`);
+      if(volInput) volInput.value = vol || '';
+    }
   }
 }
 function saveSesField(athId, key, sesIdx, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(plan && plan.detailedSessions && plan.detailedSessions[key]){
     plan.detailedSessions[key][sesIdx][field] = value;
+    // Si el usuario edita el volumen manualmente, marcarlo como override.
+    if(field === 'volume'){
+      const trimmed = (value||'').toString().trim();
+      plan.detailedSessions[key][sesIdx].volumeManual = trimmed !== '';
+      // Si lo dejó vacío, volver al modo auto y refrescar la UI para que
+      // aparezca el badge AUTO de nuevo.
+      if(!trimmed){
+        save();
+        navigate(S.view, S.params);
+        return;
+      }
+    }
     save();
   }
 }
@@ -2429,6 +2543,7 @@ function pasteDetailedSession(athId, key, sesIdx){
   const target = plan.detailedSessions[key][sesIdx];
   target.exercises = JSON.parse(JSON.stringify(src.exercises));
   target.volume = src.volume;
+  target.volumeManual = !!src.volumeManual;
   target.observations = src.observations;
   save();
   toast('Sesión detallada pegada');
