@@ -3546,9 +3546,64 @@ function renderAPRETable(mode){
 
 function calcAPRE(){
   const w = parseFloat(document.getElementById('apreWeight').value)||0;
-  const r = parseInt(document.getElementById('apreReps').value);
-  if(!w || isNaN(r)){ document.getElementById('apreResult').innerHTML=''; return; }
+  const repsRaw = document.getElementById('apreReps').value;
+  const r = parseInt(repsRaw);
+  const hasReps = repsRaw !== '' && !isNaN(r) && r >= 0;
 
+  // Sin peso → no hay nada que mostrar
+  if(!w){ document.getElementById('apreResult').innerHTML=''; return; }
+
+  // Series 1-3 según protocolo seleccionado
+  const s1w = (w*0.5).toFixed(1);
+  const s2w = (w*0.75).toFixed(1);
+  const s1r = apreMode===10?12:apreMode===6?10:6;
+  const s2r = apreMode===10?10:apreMode===6?6:3;
+  // La 3ª serie es AMRAP con el 100% de RM — la cantidad real de reps la introduce el usuario.
+  // Si aún no la ha introducido, mostramos el objetivo del protocolo como referencia.
+  const s3TargetReps = apreMode; // 10, 6 o 3 según protocolo
+
+  // ========== SIN REPS: solo series 1-3 (fase planificación pre-entrenamiento) ==========
+  if(!hasReps){
+    document.getElementById('apreResult').innerHTML = `
+      <!-- Plan de series (pre-AMRAP) -->
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:20px;background:rgba(139,115,64,.10);border:1px solid rgba(139,115,64,.3);font-weight:600;color:var(--primary)">
+          <i class="fas fa-clipboard-list"></i>
+          Plan de series — tras la 3.ª introduce las reps reales
+        </div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:4px;padding:20px;margin-bottom:20px;border:1px solid var(--border)">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:400;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px">Desglose de Series — APRE ${apreMode}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <div style="text-align:center;padding:14px;background:var(--card);border-radius:3px;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px;letter-spacing:.3px;text-transform:uppercase">1.ª Serie</div>
+            <div style="font-family:'DM Sans',var(--sans);font-size:22px;font-weight:700;letter-spacing:-.3px">${s1r} rep</div>
+            <div style="font-family:var(--mono);font-size:13px;color:var(--primary);font-weight:500">${s1w} kg</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted)">50% RM · calentamiento</div>
+          </div>
+          <div style="text-align:center;padding:14px;background:var(--card);border-radius:3px;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px;letter-spacing:.3px;text-transform:uppercase">2.ª Serie</div>
+            <div style="font-family:'DM Sans',var(--sans);font-size:22px;font-weight:700;letter-spacing:-.3px">${s2r} rep</div>
+            <div style="font-family:var(--mono);font-size:13px;color:var(--primary);font-weight:500">${s2w} kg</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted)">75% RM · aproximación</div>
+          </div>
+          <div style="text-align:center;padding:14px;background:var(--card);border-radius:3px;border:1px dashed rgba(139,115,64,.4)">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--warn);margin-bottom:6px;letter-spacing:.3px;text-transform:uppercase">3.ª Serie (AMRAP)</div>
+            <div style="font-family:'DM Sans',var(--sans);font-size:22px;font-weight:700;letter-spacing:-.3px;color:var(--warn)">${s3TargetReps}+ rep</div>
+            <div style="font-family:var(--mono);font-size:13px;font-weight:500">${w} kg</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted)">100% RM · hasta el fallo</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:10px 14px;background:var(--card);border-radius:3px;border-left:2px solid var(--primary);font-size:11px;line-height:1.5">
+          <strong style="color:var(--primary)"><i class="fas fa-info-circle" style="margin-right:4px"></i>Después de la 3.ª serie:</strong>
+          introduce las repeticiones reales completadas arriba y aparecerán el peso exacto para la 4.ª serie y la siguiente sesión.
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ========== CON REPS: breakdown completo + stats ==========
   const adj = getAPREAdjustments(apreMode, r);
   const set4Weight = Math.max(0, w+adj.set4);
   const nextWeight = Math.max(0, w+adj.next);
@@ -3556,12 +3611,6 @@ function calcAPRE(){
   const zoneLabels = {ok:'Zona Óptima',warn:'Subóptimo',danger:'Demasiado pesado'};
   const c4 = adj.set4>0?'var(--ok)':adj.set4<0?'var(--danger)':'var(--warn)';
   const cn = adj.next>0?'var(--ok)':adj.next<0?'var(--danger)':'var(--warn)';
-
-  // Calculate series breakdown
-  const s1w = (w*0.5).toFixed(1);
-  const s2w = (w*0.75).toFixed(1);
-  const s1r = apreMode===10?12:apreMode===6?10:6;
-  const s2r = apreMode;
 
   document.getElementById('apreResult').innerHTML = `
     <!-- Zone indicator -->
