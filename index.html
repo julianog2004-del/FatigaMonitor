@@ -2798,7 +2798,12 @@ function viewSesionesDetail(){
           : `<span class="vol-auto-badge" title="Volumen = Σ (kg × repeticiones)">AUTO</span>`}
       </span>`;
 
-    // Tabla ESPEJO — pesos reales del atleta (editable por el atleta, visible por el coach)
+    // Tabla ESPEJO — pesos reales del atleta (editable por el atleta, visible por el coach).
+    // Por defecto muestra los valores DISEÑADOS por el entrenador: así el atleta solo
+    // tiene que corregir las celdas que difieran de lo planificado. En cuanto escribe
+    // algo (aunque sea vacío), guardamos ese valor en ex.real[field] y pasa a usarlo
+    // de manera permanente en vez del plan.
+    const mirror = (realVal, plannedVal) => realVal !== undefined ? (realVal||'') : (plannedVal||'');
     const realRows = ses.exercises.map((ex,ei)=>{
       const r = ex.real || {};
       const adh = computeAdherence(ex);
@@ -2806,12 +2811,12 @@ function viewSesionesDetail(){
       const devCls = adh==null ? 'dev-cell' : 'dev-cell '+(adh-100>0?'dev-up':adh-100<0?'dev-down':'dev-eq');
       return `<tr>
         <td class="ex-name">${ex.name||'—'}</td>
-        <td><input value="${r.kg||''}" placeholder="kg" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'kg',this.value)" style="width:55px;text-align:center"></td>
-        <td><input value="${r.s1||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s1',this.value)"></td>
-        <td><input value="${r.s2||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s2',this.value)"></td>
-        <td><input value="${r.s3||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s3',this.value)"></td>
-        <td><input value="${r.s4||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s4',this.value)"></td>
-        <td><input value="${r.rir||''}" placeholder="RIR" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'rir',this.value)"></td>
+        <td><input value="${mirror(r.kg, ex.kg)}" placeholder="kg" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'kg',this.value)" style="width:55px;text-align:center"></td>
+        <td><input value="${mirror(r.s1, ex.s1)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s1',this.value)"></td>
+        <td><input value="${mirror(r.s2, ex.s2)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s2',this.value)"></td>
+        <td><input value="${mirror(r.s3, ex.s3)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s3',this.value)"></td>
+        <td><input value="${mirror(r.s4, ex.s4)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s4',this.value)"></td>
+        <td><input value="${mirror(r.rir, ex.rir)}" placeholder="RIR" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'rir',this.value)"></td>
         <td><input value="${r.note||''}" placeholder="nota" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'note',this.value)"></td>
         <td class="${devCls}" data-dev="${key}-${si}-${ei}">${devLbl}</td>
       </tr>`;
@@ -2944,11 +2949,16 @@ function computeExerciseVolume(ex, kgField='kg', sFields=['s1','s2','s3','s4']){
   return vol;
 }
 // % cumplimiento de un ejercicio: real / diseñado (en volumen).
+// Devuelve null si el plan está vacío o si el atleta no ha tocado ningún
+// campo de rendimiento (kg/series/RIR) — en ese caso la tabla muestra los
+// valores del plan como espejo pero no asumimos que los haya ejecutado.
 function computeAdherence(ex){
   const real = ex.real || {};
   const volPlan = computeExerciseVolume(ex);
-  const volReal = computeExerciseVolume({...real, kg: real.kg ?? ex.kg});
   if(volPlan<=0) return null;
+  const anyRealTouched = ['kg','s1','s2','s3','s4','rir'].some(k=>real[k]!==undefined);
+  if(!anyRealTouched) return null;
+  const volReal = computeExerciseVolume({...real, kg: real.kg ?? ex.kg});
   return Math.round((volReal/volPlan)*100);
 }
 // Guardar un campo de la fila "real" (sesión ejecutada por el atleta).
@@ -9616,7 +9626,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v21 · Ejercicios personalizables · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v22 · Sesión real reflejando la diseñada · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
