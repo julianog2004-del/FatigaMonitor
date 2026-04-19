@@ -9259,18 +9259,29 @@ function generateFullReport(aid){
         y1:{position:'right',title:{display:true,text:'%',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{drawOnChartArea:false}}
       }}
     });
-    // Anthropometry chart (cm)
-    imgAntro = makeOffChart(680,200,{
+    // Anthropometry chart (% cambio respecto a la 1.ª evaluación — igual que la vista Progreso)
+    const antroFields = [
+      {key:'biceps',label:'Bíceps',color:'#5B4F8A'},
+      {key:'pecho',label:'Pecho',color:'#4A7A5A'},
+      {key:'cintura',label:'Cintura',color:'#9E8035'},
+      {key:'cadera',label:'Cadera',color:'#A04040'},
+      {key:'muslo',label:'Muslo',color:'#7B6EAA'},
+      {key:'gemelo',label:'Gemelo',color:'#8B7340'}
+    ];
+    const antroBase = evals[0];
+    imgAntro = makeOffChart(680,220,{
       type:'line',
-      data:{labels:evalLabels,datasets:[
-        {label:'Bíceps',data:evals.map(e=>e.biceps),borderColor:'#5B4F8A',tension:.3,pointRadius:4,borderWidth:1.5},
-        {label:'Pecho',data:evals.map(e=>e.pecho),borderColor:'#4A7A5A',tension:.3,pointRadius:4,borderWidth:1.5},
-        {label:'Cintura',data:evals.map(e=>e.cintura),borderColor:'#9E8035',tension:.3,pointRadius:4,borderWidth:1.5},
-        {label:'Cadera',data:evals.map(e=>e.cadera),borderColor:'#A04040',tension:.3,pointRadius:4,borderWidth:1.5},
-        {label:'Muslo',data:evals.map(e=>e.muslo),borderColor:'#7B6EAA',tension:.3,pointRadius:4,borderWidth:1.5},
-        {label:'Gemelo',data:evals.map(e=>e.gemelo),borderColor:'#8B7340',tension:.3,pointRadius:4,borderWidth:1.5}
-      ]},
-      options:{scales:{y:{title:{display:true,text:'cm',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
+      data:{labels:evalLabels,datasets:antroFields.map(f=>({
+        label:f.label,
+        data:evals.map(e=>{
+          const base = antroBase[f.key];
+          const val = e[f.key];
+          if(!base||!val) return null;
+          return +(((val-base)/base)*100).toFixed(1);
+        }),
+        borderColor:f.color,tension:.3,pointRadius:4,borderWidth:1.5
+      }))},
+      options:{scales:{y:{title:{display:true,text:'Cambio (%)',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9},callback:v=>parseFloat(v.toFixed(1))+'%'},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
     });
   }
 
@@ -9330,6 +9341,7 @@ function generateFullReport(aid){
   // Build evaluation table HTML
   let evalTableHTML = '';
   if(evals.length){
+    const anyObs = evals.some(ev=>ev.observations && ev.observations.trim());
     evalTableHTML = '<div class="section-title">Evaluaciones Mensuales</div>'+
       '<table><thead><tr><th>Eval.</th><th>Fecha</th><th>Peso (kg)</th><th>Grasa (%)</th><th>M. Musc. (kg)</th><th>Bíceps</th><th>Pecho</th><th>Cintura</th><th>Cadera</th><th>Muslo</th><th>Gemelo</th></tr></thead><tbody>'+
       evals.map((ev,i)=>{
@@ -9346,6 +9358,13 @@ function generateFullReport(aid){
         '</tr>';
       }).join('')+
       '</tbody></table>';
+    // Per-evaluation observations if any
+    if(anyObs){
+      evalTableHTML += '<div style="margin-top:10px"><div style="font-family:DM Mono,monospace;font-size:8px;color:#8B7340;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Observaciones por evaluación</div>'+
+        evals.filter(ev=>ev.observations && ev.observations.trim()).map(ev=>
+          '<div style="font-size:10px;color:#555;padding:5px 8px;background:#F8F6F0;border-left:2px solid #9E8035;margin-bottom:4px;border-radius:2px"><strong style="color:#5B4F8A">'+ev.num+'.ª Eval. ('+(ev.date?fmtShort(ev.date):'—')+'):</strong> '+ev.observations+'</div>'
+        ).join('')+'</div>';
+    }
   }
 
   // Build semáforo colors
@@ -9521,7 +9540,7 @@ ${evals.length?'<div class="section">'+evalTableHTML+'</div>':''}
 
 ${imgBodyComp?'<div class="section"><div class="section-title">Composición Corporal — Evolución</div><img class="chart-img" src="'+imgBodyComp+'"></div>':''}
 
-${imgAntro?'<div class="section"><div class="section-title">Antropometría — Evolución (cm)</div><img class="chart-img" src="'+imgAntro+'"></div>':''}
+${imgAntro?'<div class="section"><div class="section-title">Antropometría — Evolución (% cambio)</div><img class="chart-img" src="'+imgAntro+'"></div>':''}
 
 ${imgLifts?'<div class="section"><div class="section-title">Progreso de Fuerza (kg)</div><img class="chart-img" src="'+imgLifts+'"></div>':''}
 
