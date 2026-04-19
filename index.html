@@ -411,7 +411,56 @@
     .glow-ok{border-color:rgba(74,122,90,.18)!important}
     .glow-warn{border-color:rgba(139,115,64,.18)!important}
     @media(max-width:1100px){.grid-4{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr}.meso-sessions{grid-template-columns:repeat(4,1fr)}.eval-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
-    @media(max-width:768px){#sidebar{width:56px}.sb-logo .lo-text,.sb-logo .lo-sub,.nav-label,.nav-item span,.u-name,.u-role,.logout-btn span{display:none}.nav-item{justify-content:center;padding:10px}.sb-header{padding:16px 10px}.nav-section{padding:8px 4px}.sb-footer{padding:8px 4px}.pg-header,.pg-body{padding-left:14px;padding-right:14px}.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}.meso-sessions{grid-template-columns:1fr 1fr}.eval-grid{grid-template-columns:1fr}.cmj-avg-card{flex-direction:column;text-align:center;gap:12px}.ses-card{padding:14px}}
+    /* ===== MOBILE (≤768px) ===== */
+    @media(max-width:768px){
+      /* Sidebar: solo iconos. El selector :not(.ic) evita esconder el icono junto con el texto. */
+      #sidebar{width:56px}
+      .sb-logo .lo-text,.sb-logo .lo-sub,.nav-label,
+      .nav-item>span:not(.ic),
+      .u-name,.u-role,
+      .logout-btn span{display:none}
+      .nav-item{justify-content:center;padding:10px 8px;position:relative}
+      .nav-item .ic{width:auto;font-size:15px}
+      .nav-item .nav-badge{position:absolute;top:2px;right:2px;margin:0;font-size:8px;padding:1px 4px;min-width:14px}
+      .sb-header{padding:16px 10px}
+      .sb-header .sb-logo{justify-content:center}
+      .nav-section{padding:8px 4px}
+      .sb-footer{padding:8px 4px}
+      .sb-footer .user-info{flex-direction:column;padding:6px;gap:4px}
+      .sb-footer .avatar{margin:0 auto}
+      .logout-btn{justify-content:center;padding:10px 8px}
+
+      /* Header de página: icono + texto siempre visible, botones compactos con wrap */
+      .pg-header{padding:20px 14px 0;align-items:flex-start}
+      .pg-header>*{min-width:0}
+      .pg-title{font-size:22px;letter-spacing:.5px;line-height:1.15}
+      .pg-sub{font-size:10px}
+      .pg-header .flex.gap-8,.pg-header .flex.gap-16{flex-wrap:wrap;gap:6px}
+      .pg-header .btn{padding:7px 12px;font-size:11px;white-space:nowrap}
+      .pg-header .btn-sm{padding:6px 10px;font-size:10px}
+      .pg-header .btn i{margin-right:2px}
+      .pg-body{padding:20px 14px 36px}
+
+      /* Grids → columna única */
+      .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+      .meso-sessions{grid-template-columns:1fr 1fr}
+      .eval-grid{grid-template-columns:1fr}
+      .cmj-avg-card{flex-direction:column;text-align:center;gap:12px}
+      .ses-card{padding:14px}
+
+      /* Tabla con scroll horizontal y textos compactos */
+      .card{padding:16px}
+      table th,table td{padding:8px 6px;font-size:12px}
+      table th{font-size:9px}
+    }
+    /* ===== VERY SMALL (≤480px) ===== */
+    @media(max-width:480px){
+      .pg-title{font-size:18px}
+      .pg-header{padding-top:14px}
+      .pg-header .btn{padding:6px 10px;font-size:10px}
+      .modal{padding:20px;width:100%;max-width:calc(100vw - 16px);max-height:92vh}
+      .sb-toggle{top:8px;width:26px;height:26px}
+    }
   </style>
 </head>
 <body>
