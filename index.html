@@ -9184,11 +9184,12 @@ function generateFullReport(aid){
     const from=daysAgo((w+1)*7), to=daysAgo(w*7);
     wkLoads.push(+DB.sessions.filter(s=>s.athleteId===aid&&s.date>from&&s.date<=to).reduce((sum,s)=>sum+s.extLoad,0).toFixed(1));
   }
-  const imgLoad = makeOffChart(680,200,{
+  const hasLoadData = wkLoads.some(v=>v>0);
+  const imgLoad = hasLoadData ? makeOffChart(680,200,{
     type:'bar',
     data:{labels:wkLabels,datasets:[{label:'Carga Semanal',data:wkLoads,backgroundColor:'rgba(91,79,138,.6)',borderRadius:4}]},
     options:{scales:{x:{title:{display:true,text:'Semanas',color:'#555',font:{size:10,family:'Inter'}}}},plugins:{legend:{display:false}}}
-  });
+  }) : null;
 
   // 5. Ratio A/C over weeks
   const ratioArr=[];
@@ -9197,17 +9198,18 @@ function generateFullReport(aid){
     let wChronic=0;
     for(let cw=0;cw<4;cw++) wChronic+=DB.sessions.filter(s=>s.athleteId===aid&&s.date>daysAgo((w+cw+1)*7)&&s.date<=daysAgo((w+cw)*7)).reduce((sum,s)=>sum+s.extLoad,0);
     wChronic/=4;
-    ratioArr.push(wChronic?+(wAcute/wChronic).toFixed(2):1);
+    ratioArr.push(wChronic?+(wAcute/wChronic).toFixed(2):0);
   }
-  const imgRatio = makeOffChart(680,200,{
+  const hasRatioData = ratioArr.some(v=>v>0);
+  const imgRatio = hasRatioData ? makeOffChart(680,200,{
     type:'line',
     data:{labels:['1','2','3','4'],datasets:[
-      {label:'Ratio A/C',data:ratioArr,borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,.12)',fill:true,tension:.3,pointRadius:5,pointBackgroundColor:'#5B4F8A',borderWidth:2},
+      {label:'Ratio A/C',data:ratioArr.map(v=>v||null),borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,.12)',fill:true,tension:.3,pointRadius:5,pointBackgroundColor:'#5B4F8A',borderWidth:2,spanGaps:true},
       {label:'Zona ideal inf.',data:[0.8,0.8,0.8,0.8],borderColor:'rgba(74,122,90,.5)',borderDash:[5,5],pointRadius:0,borderWidth:1},
       {label:'Zona ideal sup.',data:[1.3,1.3,1.3,1.3],borderColor:'rgba(158,128,53,.5)',borderDash:[5,5],pointRadius:0,borderWidth:1}
     ]},
     options:{scales:{x:{title:{display:true,text:'Semanas',color:'#555',font:{size:10,family:'Inter'}}},y:{min:0,max:2}}}
-  });
+  }) : null;
 
   // 6. Correlation (Wellness vs CMJ)
   let imgCorr = null;
@@ -9274,7 +9276,8 @@ function generateFullReport(aid){
 
   // 9. Progress lifts chart (kg — separate from CMJ cm)
   const progData = plan && plan.progress ? plan.progress.filter(p=>p.pressBanca||p.sentadilla||p.pesoMuerto) : [];
-  let imgLifts = null, imgCMJevo = null;
+  const hasCMJProg = plan && plan.progress ? plan.progress.filter(p=>p.cmj>0) : [];
+  let imgLifts = null, imgCMJevo = null, imgTotal = null;
   if(progData.length>=2){
     const pLabels = progData.map(p=>p.month||'?');
     imgLifts = makeOffChart(680,200,{
@@ -9286,12 +9289,38 @@ function generateFullReport(aid){
       ]},
       options:{scales:{y:{title:{display:true,text:'kg',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
     });
+    // Total kg per month (PB + SQ + PM)
+    imgTotal = makeOffChart(680,180,{
+      type:'bar',
+      data:{labels:pLabels,datasets:[
+        {label:'Total (PB + SQ + PM)',data:progData.map(p=>(p.pressBanca||0)+(p.sentadilla||0)+(p.pesoMuerto||0)),backgroundColor:'rgba(91,79,138,.55)',borderRadius:6}
+      ]},
+      options:{plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'kg totales',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
+    });
+  }
+  // CMJ evolution (independent of lift data — needs its own cmj data)
+  if(hasCMJProg.length>=2){
+    const cmjLabels = hasCMJProg.map(p=>p.month||'?');
     imgCMJevo = makeOffChart(340,180,{
       type:'line',
-      data:{labels:pLabels,datasets:[
-        {label:'CMJ (cm)',data:progData.map(p=>p.cmj||null),borderColor:'#9E8035',backgroundColor:'rgba(158,128,53,.12)',fill:true,tension:.3,pointRadius:6,pointBackgroundColor:'#9E8035',borderWidth:2.5}
+      data:{labels:cmjLabels,datasets:[
+        {label:'CMJ (cm)',data:hasCMJProg.map(p=>p.cmj),borderColor:'#9E8035',backgroundColor:'rgba(158,128,53,.12)',fill:true,tension:.3,pointRadius:6,pointBackgroundColor:'#9E8035',borderWidth:2.5}
       ]},
       options:{scales:{y:{title:{display:true,text:'cm',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
+    });
+  }
+
+  // 10. Macrociclo — Distribución de carga por semana (plan.weeks)
+  let imgMacro = null;
+  if(plan && plan.weeks && plan.weeks.length>=2){
+    const microColors = {gradual:'#2D7A5C',corriente:'#5B4F8A',choque:'#A04040',restablecimiento:'#4A7A5A',competicion:'#9E8035',aproximacion:'#C47820',control:'#7B6EAA'};
+    const mLabels = plan.weeks.map(w=>'S'+w.weekNum);
+    const mData = plan.weeks.map(w=>w.targetLoad||0);
+    const mColors = plan.weeks.map(w=>microColors[w.type]||'#5B4F8A');
+    imgMacro = makeOffChart(680,220,{
+      type:'bar',
+      data:{labels:mLabels,datasets:[{label:'Carga planificada',data:mData,backgroundColor:mColors,borderRadius:4}]},
+      options:{scales:{x:{title:{display:true,text:'Semanas del macrociclo',color:'#555',font:{size:10,family:'Inter'}}},y:{title:{display:true,text:'Carga (0-25)',color:'#777',font:{size:9}},min:0,max:25}},plugins:{legend:{display:false}}}
     });
   }
 
@@ -9469,43 +9498,24 @@ tr:nth-child(even){background:#FAFAF7}
   <div class="ratio-labels"><span>0.0</span><span>0.8</span><span>1.3</span><span>1.5</span><span>2.0</span></div>
 </div>
 
-<div class="section">
-  <div class="section-title">CMJ — Tendencia</div>
-  ${imgCMJ?'<img class="chart-img" src="'+imgCMJ+'">':'<div style="color:#999;font-size:10px;padding:8px">Datos insuficientes</div>'}
-</div>
+${imgCMJ?'<div class="section"><div class="section-title">CMJ — Tendencia</div><img class="chart-img" src="'+imgCMJ+'"></div>':''}
 
-<div class="section">
-  <div class="section-title">Wellness Score</div>
-  ${imgWell?'<img class="chart-img" src="'+imgWell+'">':'<div style="color:#999;font-size:10px;padding:8px">Datos insuficientes</div>'}
-</div>
+${imgWell?'<div class="section"><div class="section-title">Wellness Score</div><img class="chart-img" src="'+imgWell+'"></div>':''}
 
-<div class="section">
-  <div class="section-title">Componentes del Wellness</div>
-  ${imgWellComp?'<img class="chart-img" src="'+imgWellComp+'">':'<div style="color:#999;font-size:10px;padding:8px">Datos insuficientes</div>'}
-</div>
+${imgWellComp?'<div class="section"><div class="section-title">Componentes del Wellness</div><img class="chart-img" src="'+imgWellComp+'"></div>':''}
 
-<div class="section">
-  <div class="section-title">Carga Externa Semanal</div>
-  <img class="chart-img" src="${imgLoad}">
-</div>
+${imgLoad?'<div class="section"><div class="section-title">Carga Externa Semanal</div><img class="chart-img" src="'+imgLoad+'"></div>':''}
 
-<div class="section">
-  <div class="section-title">Ratio Aguda/Crónica — Evolución</div>
-  <img class="chart-img" src="${imgRatio}">
-</div>
+${imgRatio?'<div class="section"><div class="section-title">Ratio Aguda/Crónica — Evolución</div><img class="chart-img" src="'+imgRatio+'"></div>':''}
 
-<div class="section">
+${(imgCorr||imgSesTypes)?`<div class="section">
   <div class="chart-pair">
-    <div>
-      <div class="section-title">Correlación Wellness–CMJ</div>
-      ${imgCorr?'<img class="chart-img" src="'+imgCorr+'">':'<div style="color:#999;font-size:10px;padding:8px">Datos insuficientes</div>'}
-    </div>
-    <div>
-      <div class="section-title">Distribución de Sesiones (30d)</div>
-      ${imgSesTypes?'<img class="chart-img" src="'+imgSesTypes+'">':'<div style="color:#999;font-size:10px;padding:8px">Sin sesiones</div>'}
-    </div>
+    ${imgCorr?'<div><div class="section-title">Correlación Wellness–CMJ</div><img class="chart-img" src="'+imgCorr+'"></div>':''}
+    ${imgSesTypes?'<div><div class="section-title">Distribución de Sesiones (30d)</div><img class="chart-img" src="'+imgSesTypes+'"></div>':''}
   </div>
-</div>
+</div>`:''}
+
+${imgMacro?'<div class="section"><div class="section-title">Macrociclo — Distribución de Carga por Semana</div><img class="chart-img" src="'+imgMacro+'"></div>':''}
 
 ${evals.length?'<div class="section">'+evalTableHTML+'</div>':''}
 
@@ -9513,8 +9523,11 @@ ${imgBodyComp?'<div class="section"><div class="section-title">Composición Corp
 
 ${imgAntro?'<div class="section"><div class="section-title">Antropometría — Evolución (cm)</div><img class="chart-img" src="'+imgAntro+'"></div>':''}
 
-${imgLifts?'<div class="section"><div class="section-title">Progreso de Fuerza (kg)</div><img class="chart-img" src="'+imgLifts+'">'+
-  (imgCMJevo?'<div class="chart-pair" style="margin-top:8px"><div><div class="section-title">CMJ — Evolución</div><img class="chart-img" src="'+imgCMJevo+'"></div><div></div></div>':'')+'</div>':''}
+${imgLifts?'<div class="section"><div class="section-title">Progreso de Fuerza (kg)</div><img class="chart-img" src="'+imgLifts+'"></div>':''}
+
+${imgTotal?'<div class="section"><div class="section-title">Total Levantamientos (PB + SQ + PM)</div><img class="chart-img" src="'+imgTotal+'"></div>':''}
+
+${imgCMJevo?'<div class="section"><div class="section-title">CMJ — Evolución Mensual</div><img class="chart-img" src="'+imgCMJevo+'" style="max-width:340px"></div>':''}
 
 ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 
