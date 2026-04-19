@@ -1469,8 +1469,34 @@ function navigate(view, params={}){
     'athlete-nutricion': viewNutricion
   };
   if(views[view]){
-    c.innerHTML = views[view]();
-    afterRender(view, params);
+    // Error boundary: si una vista falla por datos corruptos / caché desincronizada,
+    // mostramos un mensaje amigable con opción de resetear en vez de romper toda la app.
+    try{
+      c.innerHTML = views[view]();
+    }catch(err){
+      console.error('[FatigaMonitor] Error renderizando vista', view, err);
+      c.innerHTML = `
+        <div class="pg-header"><div><div class="pg-title">Ups — vista no disponible</div><div class="pg-sub">Se ha detectado un problema cargando "${view}"</div></div></div>
+        <div class="pg-body">
+          <div class="card" style="background:rgba(160,64,64,.05);border-color:rgba(160,64,64,.3)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;font-weight:600"><i class="fas fa-exclamation-triangle"></i> Error de renderizado</div>
+            <div style="font-size:13px;line-height:1.6;color:var(--text);margin-bottom:16px">
+              Esto suele pasar tras actualizar la app si quedan datos antiguos guardados en el navegador.
+              Prueba a refrescar con <strong>Ctrl+Shift+R</strong> (o <strong>Cmd+Shift+R</strong> en Mac) para recargar sin caché.
+              Si el problema continúa, puedes resetear los datos locales (<strong>no se perderán los datos en la nube</strong>):
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" onclick="location.reload(true)"><i class="fas fa-redo"></i> Recargar sin caché</button>
+              <button class="btn btn-ghost btn-sm" onclick="if(confirm('¿Seguro que quieres borrar los datos locales? Se recargará la app.')){localStorage.clear();sessionStorage.clear();location.reload();}" style="color:var(--danger);border-color:var(--danger)"><i class="fas fa-trash"></i> Resetear datos locales</button>
+              <button class="btn btn-ghost btn-sm" onclick="navigate('coach-dashboard')"><i class="fas fa-home"></i> Volver al dashboard</button>
+            </div>
+            <details style="margin-top:14px;font-size:10px;color:var(--muted)"><summary style="cursor:pointer">Detalles técnicos</summary><pre style="font-family:var(--mono);font-size:10px;margin-top:6px;padding:8px;background:var(--bg);border-radius:3px;overflow:auto;max-height:160px">${(err&&err.stack?err.stack:err&&err.message?err.message:String(err)).replace(/</g,'&lt;')}</pre></details>
+          </div>
+        </div>`;
+      return;
+    }
+    try{ afterRender(view, params); }
+    catch(err){ console.error('[FatigaMonitor] Error en afterRender', view, err); }
   }
 }
 
@@ -2841,9 +2867,13 @@ function viewSesionesDetail(){
           <tbody>${exRows}</tbody>
         </table></div>
         <div class="ses-mirror">
-          <div class="ses-mirror-header">
+          <div class="ses-mirror-header" style="flex-wrap:wrap">
             <span><i class="fas fa-user" style="margin-right:6px"></i>SESIÓN REAL DEL ATLETA</span>
-            <span class="adh-badge ${adhCls}" data-adh="${key}-${si}">${avgAdh==null?'Pendiente de registro':'Cumplimiento: '+avgAdh+'%'}</span>
+            <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button class="copy-btn" onclick="copyPlanToReal(${selAth},'${key}',${si})" title="Copia los kg / series / RIR del plan del entrenador a la sesión real. Podrás editarlos después."><i class="fas fa-paste" style="margin-right:4px"></i>Copiar del plan</button>
+              ${ses.exercises.some(e=>e.real && Object.keys(e.real).length) ? `<button class="copy-btn" style="color:var(--danger);border-color:rgba(160,64,64,.3)" onclick="clearRealSession(${selAth},'${key}',${si})" title="Borra lo que el atleta ha registrado y vuelve a mostrar solo el plan"><i class="fas fa-eraser" style="margin-right:4px"></i>Limpiar registro</button>` : ''}
+              <span class="adh-badge ${adhCls}" data-adh="${key}-${si}">${avgAdh==null?'Pendiente de registro':'Cumplimiento: '+avgAdh+'%'}</span>
+            </span>
           </div>
           <div class="tbl-wrap"><table class="ses-exercises">
             <thead><tr><th>Ejercicio</th><th>Kg real</th><th>Serie 1</th><th>Serie 2</th><th>Serie 3</th><th>Serie 4</th><th>RIR</th><th>Nota</th><th>Δ</th></tr></thead>
@@ -2991,6 +3021,46 @@ function saveSesRealEx(athId, key, sesIdx, exIdx, field, value){
       hdr.className = 'adh-badge ' + (avg>=90&&avg<=110?'ok':avg>=75&&avg<=125?'warn':'danger');
     }
   }
+}
+// Copia los valores del plan del entrenador (kg, series, RIR) a los campos
+// "reales" del atleta. Útil cuando el atleta ejecuta la sesión tal cual y
+// solo quiere marcarla como completada, o como punto de partida para luego
+// ajustar alguna celda que difiera. Conserva cualquier nota existente.
+function copyPlanToReal(athId, key, sesIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const ses = plan.detailedSessions[key][sesIdx];
+  if(!ses || !Array.isArray(ses.exercises)) return;
+  let copied = 0;
+  ses.exercises.forEach(ex=>{
+    if(!ex.name && !ex.kg && !ex.s1 && !ex.s2 && !ex.s3 && !ex.s4 && !ex.rir) return; // fila vacía, skip
+    const existingNote = ex.real?.note || '';
+    ex.real = {
+      kg: ex.kg||'',
+      s1: ex.s1||'',
+      s2: ex.s2||'',
+      s3: ex.s3||'',
+      s4: ex.s4||'',
+      rir: ex.rir||'',
+      note: existingNote
+    };
+    copied++;
+  });
+  save();
+  toast(copied ? `Plan copiado a sesión real (${copied} ejercicios)` : 'El plan está vacío — nada que copiar', copied?'ok':'warn');
+  navigate(S.view, S.params);
+}
+// Borra el registro del atleta y vuelve a mostrar solo el plan como espejo.
+function clearRealSession(athId, key, sesIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const ses = plan.detailedSessions[key][sesIdx];
+  if(!ses || !Array.isArray(ses.exercises)) return;
+  if(!confirm('¿Borrar todo el registro del atleta en esta sesión? Los valores del plan se mostrarán como referencia.')) return;
+  ses.exercises.forEach(ex=>{ delete ex.real; });
+  save();
+  toast('Registro del atleta borrado');
+  navigate(S.view, S.params);
 }
 function saveSesEx(athId, key, sesIdx, exIdx, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
@@ -9626,7 +9696,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v22 · Sesión real reflejando la diseñada · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v23 · Copy/paste del plan + error-boundary · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
