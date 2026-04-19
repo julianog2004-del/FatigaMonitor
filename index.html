@@ -850,13 +850,14 @@ function seed(){
       gemelo: i<3 ? +(37 + i*0.1).toFixed(1) : 0,
       observations: i===0?'Evaluación inicial':'',
     }));
-    // Build progress tracking
+    // Build progress tracking — nuevo formato con exercises[] dinámico
     const planStart = daysAgo(60);
     const planEnd = daysAgo(60 - 365);
+    const progressExercises = ['Press Banca','Sentadilla','Peso Muerto'];
     const progress = [
-      {date:daysAgo(60), month:'1°', pressBanca:100, sentadilla:150, pesoMuerto:180, cmj:a.cmjBase},
-      {date:daysAgo(12), month:'2°', pressBanca:105, sentadilla:155, pesoMuerto:185, cmj:a.cmjBase+2},
-    ].map(p=>({...p, total:p.pressBanca+p.sentadilla+p.pesoMuerto+p.cmj}));
+      {date:daysAgo(60), month:'1°', exercises:[100,150,180]},
+      {date:daysAgo(12), month:'2°', exercises:[105,155,185]},
+    ].map(p=>({...p, total:p.exercises.reduce((s,v)=>s+v,0)}));
 
     return {
       id:uid(), athleteId:a.id, coachId:a.coachId,
@@ -871,7 +872,7 @@ function seed(){
         'Mantener composición corporal dentro de la categoría',
         'Prevenir sobreentrenamiento mediante monitorización CMJ + Wellness'
       ],
-      weeks, mesociclos, evaluations, progress
+      weeks, mesociclos, evaluations, progress, progressExercises
     };
   });
 
@@ -3120,47 +3121,78 @@ function saveEval(athId, idx, field, value){
 }
 
 // ===== COACH: CONTROL DEL PROGRESO =====
+// Ensures plan.progressExercises exists and migrates legacy rows ({pressBanca,sentadilla,pesoMuerto,cmj})
+// to the new exercises[] array format.
+function ensureProgressSchema(plan){
+  if(!plan.progress) plan.progress = [];
+  if(!Array.isArray(plan.progressExercises) || !plan.progressExercises.length){
+    plan.progressExercises = ['Press Banca','Sentadilla','Peso Muerto'];
+  }
+  // Migrate rows that still use the legacy keyed structure
+  plan.progress.forEach(p=>{
+    if(!Array.isArray(p.exercises)){
+      p.exercises = [p.pressBanca||0, p.sentadilla||0, p.pesoMuerto||0];
+      // Keep legacy keys for backward-compat but the exercises[] is now source of truth
+    }
+    // Ensure array length matches exercises list
+    while(p.exercises.length < plan.progressExercises.length) p.exercises.push(0);
+    if(p.exercises.length > plan.progressExercises.length) p.exercises.length = plan.progressExercises.length;
+    p.total = p.exercises.reduce((s,v)=>s+(+v||0),0);
+  });
+}
+
 function viewProgreso(){
   const selAth = getSelAthlete();
   const plan = DB.plans.find(p=>p.athleteId===selAth);
   if(!plan) return `<div class="pg-body"><div class="empty"><i class="fas fa-chart-bar"></i><p>No hay plan</p></div></div>`;
 
-  if(!plan.progress) plan.progress = [];
-  const rows = plan.progress.map((p,i)=>`
+  ensureProgressSchema(plan);
+  const exNames = plan.progressExercises;
+
+  // Editable header for each exercise (rename + remove)
+  const exHeaders = exNames.map((name,ei)=>`
+    <th style="min-width:140px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="text" value="${name.replace(/"/g,'&quot;')}" onchange="renameProgExercise(${selAth},${ei},this.value)" style="flex:1;min-width:90px;padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:3px;background:var(--surface);color:var(--text);font-weight:600" title="Renombrar ejercicio">
+        <button class="btn btn-ghost btn-sm" onclick="removeProgExercise(${selAth},${ei})" title="Quitar ejercicio" style="padding:2px 6px"><i class="fas fa-times" style="color:var(--danger);font-size:10px"></i></button>
+      </div>
+    </th>`).join('');
+
+  const rows = plan.progress.map((p,i)=>{
+    const exCells = exNames.map((_,ei)=>`
+      <td><input type="number" step="0.5" value="${p.exercises[ei]||''}" onchange="saveProgExercise(${selAth},${i},${ei},+this.value)"></td>`).join('');
+    return `
     <tr>
       <td><input type="text" value="${p.month||''}" onchange="saveProg(${selAth},${i},'month',this.value)"></td>
       <td><input type="date" value="${p.date||''}" onchange="saveProg(${selAth},${i},'date',this.value)" style="width:120px"></td>
-      <td><input type="number" value="${p.pressBanca||''}" onchange="saveProg(${selAth},${i},'pressBanca',+this.value);recalcTotal(${selAth},${i})"></td>
-      <td><input type="number" value="${p.sentadilla||''}" onchange="saveProg(${selAth},${i},'sentadilla',+this.value);recalcTotal(${selAth},${i})"></td>
-      <td><input type="number" value="${p.pesoMuerto||''}" onchange="saveProg(${selAth},${i},'pesoMuerto',+this.value);recalcTotal(${selAth},${i})"></td>
-      <td><input type="number" value="${p.cmj||''}" onchange="saveProg(${selAth},${i},'cmj',+this.value);recalcTotal(${selAth},${i})"></td>
+      ${exCells}
       <td style="font-weight:700;color:var(--primary-l)">${p.total||0}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="removeProg(${selAth},${i})"><i class="fas fa-trash" style="color:var(--danger)"></i></button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  const colSpan = 3 + exNames.length;
 
   return `
     <div class="pg-header">
       <div><div class="pg-title">Control del Progreso</div><div class="pg-sub">Seguimiento de ejercicios objetivo y evolución</div></div>
-      <button class="btn btn-primary btn-sm" onclick="addProgRow(${selAth})"><i class="fas fa-plus"></i> Añadir Medición</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="addProgExercise(${selAth})"><i class="fas fa-plus"></i> Añadir ejercicio</button>
+        <button class="btn btn-primary btn-sm" onclick="addProgRow(${selAth})"><i class="fas fa-plus"></i> Añadir Medición</button>
+      </div>
     </div>
     <div class="pg-body">
       ${athleteSelector('coach-progreso')}
       <div class="card mb-24">
-        <div class="card-title">Ejercicios Objetivo</div>
+        <div class="card-title">Ejercicios Objetivo <span style="font-weight:400;font-size:11px;color:var(--muted);margin-left:8px">— Edita el nombre de cada ejercicio directamente en la cabecera</span></div>
         <div class="tbl-wrap"><table class="prog-table">
-          <thead><tr><th>Mes</th><th>Fecha</th><th>Press Banca (kg)</th><th>Sentadilla (kg)</th><th>Peso Muerto (kg)</th><th>CMJ (cm)</th><th>Total (kg)</th><th></th></tr></thead>
-          <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Sin mediciones. Pulsa "Añadir Medición" para empezar.</td></tr>'}</tbody>
+          <thead><tr><th style="min-width:70px">Mes</th><th style="min-width:120px">Fecha</th>${exHeaders}<th>Total (kg)</th><th></th></tr></thead>
+          <tbody>${rows||`<tr><td colspan="${colSpan}" style="text-align:center;color:var(--muted);padding:20px">Sin mediciones. Pulsa "Añadir Medición" para empezar.</td></tr>`}</tbody>
         </table></div>
       </div>
-      <div class="grid-2 mb-24">
-        <div class="card">
-          <div class="card-title">Levantamientos (kg)</div>
-          <div class="chart-box" style="height:240px"><canvas id="chartProgLifts"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">CMJ — Salto con Contramovimiento (cm)</div>
-          <div class="chart-box" style="height:240px"><canvas id="chartProgCMJevo"></canvas></div>
-        </div>
+      <div class="card mb-24">
+        <div class="card-title">Levantamientos (kg)</div>
+        <div class="chart-box" style="height:280px"><canvas id="chartProgLifts"></canvas></div>
       </div>
       ${plan.evaluations && plan.evaluations.some(e=>e.peso>0) ? `
       <div class="grid-2 mb-24">
@@ -3184,22 +3216,65 @@ function saveProg(athId, idx, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(plan && plan.progress[idx]){ plan.progress[idx][field]=value; save(); }
 }
+function saveProgExercise(athId, rowIdx, exIdx, value){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  ensureProgressSchema(plan);
+  if(!plan.progress[rowIdx]) return;
+  plan.progress[rowIdx].exercises[exIdx] = +value || 0;
+  plan.progress[rowIdx].total = plan.progress[rowIdx].exercises.reduce((s,v)=>s+(+v||0),0);
+  save();
+  navigate('coach-progreso', S.params);
+}
+function renameProgExercise(athId, exIdx, newName){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  ensureProgressSchema(plan);
+  const clean = (newName||'').trim() || `Ejercicio ${exIdx+1}`;
+  plan.progressExercises[exIdx] = clean;
+  save();
+  navigate('coach-progreso', S.params);
+}
+function addProgExercise(athId){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  ensureProgressSchema(plan);
+  plan.progressExercises.push(`Ejercicio ${plan.progressExercises.length+1}`);
+  plan.progress.forEach(p=>{ p.exercises.push(0); });
+  save();
+  navigate('coach-progreso', S.params);
+}
+function removeProgExercise(athId, exIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan) return;
+  ensureProgressSchema(plan);
+  if(plan.progressExercises.length<=1){ toast('Debes mantener al menos un ejercicio','warn'); return; }
+  if(!confirm(`¿Eliminar el ejercicio "${plan.progressExercises[exIdx]}" y todas sus mediciones?`)) return;
+  plan.progressExercises.splice(exIdx,1);
+  plan.progress.forEach(p=>{
+    p.exercises.splice(exIdx,1);
+    p.total = p.exercises.reduce((s,v)=>s+(+v||0),0);
+  });
+  save();
+  navigate('coach-progreso', S.params);
+}
 function recalcTotal(athId, idx){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(plan && plan.progress[idx]){
     const p = plan.progress[idx];
-    p.total = (p.pressBanca||0)+(p.sentadilla||0)+(p.pesoMuerto||0);
+    p.total = Array.isArray(p.exercises) ? p.exercises.reduce((s,v)=>s+(+v||0),0) : (p.pressBanca||0)+(p.sentadilla||0)+(p.pesoMuerto||0);
     save();
     navigate('coach-progreso', S.params);
   }
 }
 function addProgRow(athId){
   const plan = DB.plans.find(p=>p.athleteId===athId);
-  if(plan){
-    plan.progress.push({date:TODAY, month:`${plan.progress.length+1}°`, pressBanca:0, sentadilla:0, pesoMuerto:0, cmj:0, total:0});
-    save();
-    navigate('coach-progreso', S.params);
-  }
+  if(!plan) return;
+  ensureProgressSchema(plan);
+  const newRow = {date:TODAY, month:`${plan.progress.length+1}°`, exercises:plan.progressExercises.map(()=>0), total:0};
+  plan.progress.push(newRow);
+  save();
+  navigate('coach-progreso', S.params);
 }
 function removeProg(athId, idx){
   const plan = DB.plans.find(p=>p.athleteId===athId);
@@ -3211,43 +3286,41 @@ function setupProgresoChart(params){
   const plan = DB.plans.find(p=>p.athleteId===selAth);
   if(!plan) return;
 
-  // Progress data (lifts + CMJ)
+  ensureProgressSchema(plan);
+
+  // Progress data — dynamic exercises
   if(plan.progress && plan.progress.length){
     const labels = plan.progress.map(p=>p.month||'?');
+    const exNames = plan.progressExercises;
+    // Expandable color palette — cycles if more exercises are added
+    const palette = ['#5B4F8A','#4A7A5A','#A04040','#9E8035','#7B6EAA','#8B7340','#2D7A5C','#C47820','#4F7F8A','#8A5F4F'];
 
-    // Chart 1: Lifts (kg) — each with its own context
+    // Chart 1: Lifts (kg) — one dataset per exercise
     mkChart('chartProgLifts',{
       type:'line',
       data:{
         labels,
-        datasets:[
-          {label:'Press Banca',data:plan.progress.map(p=>p.pressBanca||null),borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,.1)',fill:false,tension:.3,pointRadius:5,pointBackgroundColor:'#5B4F8A',borderWidth:2},
-          {label:'Sentadilla',data:plan.progress.map(p=>p.sentadilla||null),borderColor:'#4A7A5A',backgroundColor:'rgba(74,122,90,.1)',fill:false,tension:.3,pointRadius:5,pointBackgroundColor:'#4A7A5A',borderWidth:2},
-          {label:'Peso Muerto',data:plan.progress.map(p=>p.pesoMuerto||null),borderColor:'#A04040',backgroundColor:'rgba(160,64,64,.1)',fill:false,tension:.3,pointRadius:5,pointBackgroundColor:'#A04040',borderWidth:2}
-        ]
+        datasets: exNames.map((name,ei)=>{
+          const color = palette[ei % palette.length];
+          return {
+            label:name,
+            data:plan.progress.map(p=>p.exercises[ei]||null),
+            borderColor:color,
+            backgroundColor:color+'1A',
+            fill:false,tension:.3,pointRadius:5,pointBackgroundColor:color,borderWidth:2
+          };
+        })
       },
       options:{scales:{y:{title:{display:true,text:'Kilogramos (kg)',color:'#8A7E6B',font:{family:'DM Mono',size:10}}}}}
     });
 
-    // Chart 2: CMJ (cm) — separate scale
-    mkChart('chartProgCMJevo',{
-      type:'line',
-      data:{
-        labels,
-        datasets:[
-          {label:'CMJ (cm)',data:plan.progress.map(p=>p.cmj||null),borderColor:'#9E8035',backgroundColor:'rgba(158,128,53,.15)',fill:true,tension:.3,pointRadius:6,pointBackgroundColor:'#9E8035',borderWidth:2.5}
-        ]
-      },
-      options:{scales:{y:{title:{display:true,text:'Centímetros (cm)',color:'#8A7E6B',font:{family:'DM Mono',size:10}}}}}
-    });
-
-    // Chart 5: Total lifts
+    // Chart 2: Total lifts (sum of all exercises)
     mkChart('chartProgTotal',{
       type:'bar',
       data:{
         labels,
         datasets:[
-          {label:'Total (PB + SQ + PM)',data:plan.progress.map(p=>(p.pressBanca||0)+(p.sentadilla||0)+(p.pesoMuerto||0)),backgroundColor:'rgba(91,79,138,.5)',borderRadius:6}
+          {label:'Total (suma de ejercicios)',data:plan.progress.map(p=>p.exercises.reduce((s,v)=>s+(+v||0),0)),backgroundColor:'rgba(91,79,138,.5)',borderRadius:6}
         ]
       },
       options:{plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'Kilogramos (kg)',color:'#8A7E6B',font:{family:'DM Mono',size:10}}}}}
@@ -9285,39 +9358,31 @@ function generateFullReport(aid){
     });
   }
 
-  // 9. Progress lifts chart (kg — separate from CMJ cm)
-  const progData = plan && plan.progress ? plan.progress.filter(p=>p.pressBanca||p.sentadilla||p.pesoMuerto) : [];
-  const hasCMJProg = plan && plan.progress ? plan.progress.filter(p=>p.cmj>0) : [];
-  let imgLifts = null, imgCMJevo = null, imgTotal = null;
-  if(progData.length>=2){
+  // 9. Progress lifts chart — dynamic exercises (CMJ chart removed)
+  if(plan) ensureProgressSchema(plan);
+  const progExNames = plan && Array.isArray(plan.progressExercises) ? plan.progressExercises : [];
+  const progData = plan && plan.progress ? plan.progress.filter(p=>Array.isArray(p.exercises) && p.exercises.some(v=>+v>0)) : [];
+  let imgLifts = null, imgTotal = null;
+  if(progData.length>=2 && progExNames.length){
     const pLabels = progData.map(p=>p.month||'?');
-    imgLifts = makeOffChart(680,200,{
+    const palette = ['#5B4F8A','#4A7A5A','#A04040','#9E8035','#7B6EAA','#8B7340','#2D7A5C','#C47820','#4F7F8A','#8A5F4F'];
+    imgLifts = makeOffChart(680,220,{
       type:'line',
-      data:{labels:pLabels,datasets:[
-        {label:'Press Banca (kg)',data:progData.map(p=>p.pressBanca||null),borderColor:'#5B4F8A',tension:.3,pointRadius:5,pointBackgroundColor:'#5B4F8A',borderWidth:2},
-        {label:'Sentadilla (kg)',data:progData.map(p=>p.sentadilla||null),borderColor:'#4A7A5A',tension:.3,pointRadius:5,pointBackgroundColor:'#4A7A5A',borderWidth:2},
-        {label:'Peso Muerto (kg)',data:progData.map(p=>p.pesoMuerto||null),borderColor:'#A04040',tension:.3,pointRadius:5,pointBackgroundColor:'#A04040',borderWidth:2}
-      ]},
+      data:{labels:pLabels,datasets: progExNames.map((name,ei)=>({
+        label:name+' (kg)',
+        data:progData.map(p=>p.exercises[ei]||null),
+        borderColor:palette[ei % palette.length],
+        tension:.3,pointRadius:5,pointBackgroundColor:palette[ei % palette.length],borderWidth:2
+      }))},
       options:{scales:{y:{title:{display:true,text:'kg',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
     });
-    // Total kg per month (PB + SQ + PM)
+    // Total kg per month (sum of all exercises)
     imgTotal = makeOffChart(680,180,{
       type:'bar',
       data:{labels:pLabels,datasets:[
-        {label:'Total (PB + SQ + PM)',data:progData.map(p=>(p.pressBanca||0)+(p.sentadilla||0)+(p.pesoMuerto||0)),backgroundColor:'rgba(91,79,138,.55)',borderRadius:6}
+        {label:'Total (suma de ejercicios)',data:progData.map(p=>p.exercises.reduce((s,v)=>s+(+v||0),0)),backgroundColor:'rgba(91,79,138,.55)',borderRadius:6}
       ]},
       options:{plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'kg totales',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
-    });
-  }
-  // CMJ evolution (independent of lift data — needs its own cmj data)
-  if(hasCMJProg.length>=2){
-    const cmjLabels = hasCMJProg.map(p=>p.month||'?');
-    imgCMJevo = makeOffChart(340,180,{
-      type:'line',
-      data:{labels:cmjLabels,datasets:[
-        {label:'CMJ (cm)',data:hasCMJProg.map(p=>p.cmj),borderColor:'#9E8035',backgroundColor:'rgba(158,128,53,.12)',fill:true,tension:.3,pointRadius:6,pointBackgroundColor:'#9E8035',borderWidth:2.5}
-      ]},
-      options:{scales:{y:{title:{display:true,text:'cm',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
     });
   }
 
@@ -9544,16 +9609,14 @@ ${imgAntro?'<div class="section"><div class="section-title">Antropometría — E
 
 ${imgLifts?'<div class="section"><div class="section-title">Progreso de Fuerza (kg)</div><img class="chart-img" src="'+imgLifts+'"></div>':''}
 
-${imgTotal?'<div class="section"><div class="section-title">Total Levantamientos (PB + SQ + PM)</div><img class="chart-img" src="'+imgTotal+'"></div>':''}
-
-${imgCMJevo?'<div class="section"><div class="section-title">CMJ — Evolución Mensual</div><img class="chart-img" src="'+imgCMJevo+'" style="max-width:340px"></div>':''}
+${imgTotal?'<div class="section"><div class="section-title">Total Levantamientos (suma de ejercicios objetivo)</div><img class="chart-img" src="'+imgTotal+'"></div>':''}
 
 ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v20 · Informe unificado · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v21 · Ejercicios personalizables · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
