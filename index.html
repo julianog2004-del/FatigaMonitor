@@ -14,6 +14,31 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
   <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <!-- Firebase (multi-device sync + auth) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, query, where, getDocs, onSnapshot, writeBatch, serverTimestamp, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyCOTmGsowogGT2H8K8fqOadMuXMlLU2OaY",
+      authDomain: "fatigamonitor.firebaseapp.com",
+      projectId: "fatigamonitor",
+      storageBucket: "fatigamonitor.firebasestorage.app",
+      messagingSenderId: "446007079305",
+      appId: "1:446007079305:web:58d14de67d25807af63158"
+    };
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const db = getFirestore(fbApp);
+    try { await enableIndexedDbPersistence(db); } catch(e){ console.warn('Firestore offline persistence no disponible:', e?.code); }
+    const googleProvider = new GoogleAuthProvider();
+    window.FB = {
+      app: fbApp, auth, db, ready: true, googleProvider,
+      onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, updateProfile,
+      doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, query, where, getDocs, onSnapshot, writeBatch, serverTimestamp
+    };
+    window.dispatchEvent(new Event('firebase-ready'));
+  </script>
   <style>
     :root{--bg:#F5F0E8;--bg2:#EDE7DC;--card:#FDFBF7;--card2:#F8F4ED;--border:#D6CCBA;--primary:#8B7340;--primary-d:#6B5730;--primary-l:#A6894E;--accent:#5B4F8A;--accent-alt:#7B6EAA;--text:#2C2418;--muted:#8A7E6B;--ok:#4A7A5A;--warn:#9E8035;--danger:#A04040;--side-w:250px;--serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;--mono:'DM Mono','Fira Code',monospace;--sans:'Inter',system-ui,sans-serif}
     *{margin:0;padding:0;box-sizing:border-box}
@@ -291,6 +316,20 @@
     .ses-exercises .btn-row-del{background:transparent;border:1px solid transparent;color:var(--muted);width:22px;height:22px;border-radius:2px;cursor:pointer;padding:0;font-size:10px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
     .ses-exercises .btn-row-del:hover{background:rgba(160,64,64,.1);color:var(--danger);border-color:rgba(160,64,64,.35)}
     .ses-exercises .td-del{width:30px;padding:4px !important;text-align:center}
+    /* Tabla espejo (sesión real del atleta) */
+    .ses-mirror{margin-top:14px;background:rgba(91,79,138,.04);border:1px solid rgba(91,79,138,.18);border-left:3px solid var(--accent);border-radius:3px;padding:12px 14px 10px}
+    .ses-mirror-header{display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+    .ses-mirror-header .adh-badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:2px;background:rgba(91,79,138,.1);color:var(--accent);letter-spacing:.3px;font-weight:400;text-transform:none}
+    .ses-mirror-header .adh-badge.ok{background:rgba(74,122,90,.1);color:var(--ok)}
+    .ses-mirror-header .adh-badge.warn{background:rgba(158,128,53,.1);color:var(--warn)}
+    .ses-mirror-header .adh-badge.danger{background:rgba(160,64,64,.1);color:var(--danger)}
+    .ses-mirror table input{background:var(--card);border-color:rgba(91,79,138,.25)}
+    .ses-mirror table input:focus{border-color:var(--accent);background:rgba(91,79,138,.04)}
+    .ses-mirror .ex-name{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 8px;font-style:italic}
+    .ses-mirror .dev-cell{text-align:center;font-family:var(--mono);font-size:10px;padding:4px 2px;width:38px}
+    .ses-mirror .dev-up{color:var(--ok)}
+    .ses-mirror .dev-down{color:var(--danger)}
+    .ses-mirror .dev-eq{color:var(--muted)}
     /* Botón "añadir ejercicio" */
     .ses-add-ex{margin-top:8px;display:flex;justify-content:flex-end;gap:6px}
     .ses-add-ex button{font-family:var(--mono);font-size:10px;padding:5px 12px;background:var(--bg);border:1px dashed var(--border);border-radius:3px;color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:.3px}
@@ -310,6 +349,18 @@
     .dd-item i{font-size:15px;width:20px;text-align:center}
     .dd-item .dd-sub{display:block;font-size:10px;color:var(--muted);margin-top:1px;font-weight:400}
     .dd-item .dd-label{font-weight:600;font-size:12px;line-height:1.2}
+    /* MICRONUTRIENTES — gauges radiales */
+    .nut-gauge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .nut-gauge{padding:10px 8px;border-radius:4px;text-align:center;transition:transform .15s, box-shadow .15s;cursor:help}
+    .nut-gauge:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.06)}
+    .nut-gauge-label{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.3px;color:var(--text);margin-bottom:4px}
+    .nut-gauge-label i{margin-right:3px;font-size:10px}
+    .nut-gauge-vals{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;line-height:1.3}
+    .nut-gauge-intake{color:var(--text);font-weight:700}
+    .nut-gauge-sep{color:var(--muted);margin:0 2px}
+    .nut-gauge-drv{color:var(--muted)}
+    .nut-gauge-unit{display:block;font-size:8px;color:var(--muted);opacity:.8}
+    .nut-gauge-zone{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.3px;margin-top:3px;text-transform:uppercase}
     /* EVALUACION TABLE */
     .eval-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
     .eval-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:20px}
@@ -374,6 +425,15 @@
       <p>Sistema de Monitorización del Entrenamiento</p>
     </div>
     <div id="loginError" class="alert alert-error hidden"></div>
+    <button class="btn btn-primary btn-full btn-lg" onclick="signInWithGoogle()" style="background:#fff;color:#2C2418;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 18.9 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.5-5.3l-6.2-5.3c-2 1.5-4.5 2.3-7.3 2.3-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.6 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.1 4.2-3.9 5.5l6.2 5.3C40.4 36 44 30.5 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+      Entrar con Google
+    </button>
+    <div style="display:flex;align-items:center;gap:12px;margin:20px 0 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);letter-spacing:.5px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span>O ENTRA CON CORREO</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
     <div class="form-group">
       <label>Correo electrónico</label>
       <input type="email" id="loginEmail" placeholder="email@ejemplo.com">
@@ -538,7 +598,69 @@ function getSportCategory(sport){
 
 // ===== PERSISTENCE =====
 const DB_VERSION = 7; // Bump this when data model changes — v7: campos de perfil deportivo del atleta
-function save(){ localStorage.setItem('fm_db', JSON.stringify(DB)); localStorage.setItem('fm_db_version', DB_VERSION); }
+// Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
+let _cloudSyncTimer = null;
+function _scheduleCloudSync(){
+  if(!window.FB?.ready || !window._fbUid) return;
+  // Si el usuario actual es un atleta, NO escribe a su /userdata (sus datos
+  // los controla el coach). Su sync se hace en _scheduleAthleteSync().
+  if(S.user?.type === 'athlete'){ _scheduleAthleteSync(); return; }
+  clearTimeout(_cloudSyncTimer);
+  _cloudSyncTimer = setTimeout(async()=>{
+    try{
+      const FB = window.FB;
+      // 1. Snapshot global del coach
+      await FB.setDoc(FB.doc(FB.db, 'userdata', window._fbUid), { db: DB, version: DB_VERSION, updatedAt: FB.serverTimestamp() });
+      // 2. Publicar plan per-atleta para los que tienen googleUid
+      const batch = FB.writeBatch(FB.db);
+      (DB.athletes||[]).forEach(ath=>{
+        if(!ath.googleUid) return;
+        const plan = (DB.plans||[]).find(p=>p.athleteId===ath.id);
+        const linkRef = FB.doc(FB.db, 'athleteLinks', ath.googleUid);
+        batch.set(linkRef, { coachUid: window._fbUid, athleteInternalId: ath.id, athleteName: ath.name, updatedAt: FB.serverTimestamp() }, {merge:true});
+        const planRef = FB.doc(FB.db, 'athletePlans', ath.googleUid);
+        batch.set(planRef, {
+          coachUid: window._fbUid,
+          athleteInternalId: ath.id,
+          profile: {name: ath.name, sport: ath.sport||'', age: ath.age||null, weight: ath.weight||null, height: ath.height||null, level: ath.level||'', cmjBase: ath.cmjBase||null, photo: ath.photo||null},
+          plan: plan || null,
+          updatedAt: FB.serverTimestamp()
+        }, {merge:true});
+      });
+      await batch.commit();
+    }catch(e){ console.warn('[cloud sync] failed:', e?.code||e?.message); }
+  }, 1500);
+}
+// Sync para atletas — solo publica sus ediciones del espejo (real.*).
+let _athleteSyncTimer = null;
+function _scheduleAthleteSync(){
+  if(!window.FB?.ready || !window._fbUid || S.user?.type !== 'athlete') return;
+  clearTimeout(_athleteSyncTimer);
+  _athleteSyncTimer = setTimeout(async()=>{
+    try{
+      const FB = window.FB;
+      // Escribimos solo el realByKey — objeto plano con las ediciones del atleta.
+      const plan = DB.plans?.[0];
+      if(!plan) return;
+      const realByKey = {};
+      Object.entries(plan.detailedSessions||{}).forEach(([mesoMicro, sessions])=>{
+        sessions.forEach((ses, si)=>{
+          (ses.exercises||[]).forEach((ex, ei)=>{
+            if(ex.real && Object.keys(ex.real).length){
+              realByKey[`${mesoMicro}_${si}_${ei}`] = ex.real;
+            }
+          });
+        });
+      });
+      await FB.setDoc(FB.doc(FB.db, 'athletePlans', window._fbUid), { realByKey, realUpdatedAt: FB.serverTimestamp() }, {merge:true});
+    }catch(e){ console.warn('[athlete sync] failed:', e?.code||e?.message); }
+  }, 1500);
+}
+function save(){
+  localStorage.setItem('fm_db', JSON.stringify(DB));
+  localStorage.setItem('fm_db_version', DB_VERSION);
+  _scheduleCloudSync();
+}
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
   if(ver < DB_VERSION){ seed(); return; }
@@ -954,7 +1076,204 @@ function doLogin(){
   showApp();
 }
 function quickLogin(e,p){ document.getElementById('loginEmail').value=e; document.getElementById('loginPass').value=p; doLogin(); }
-function logout(){ S.user=null; localStorage.removeItem('fm_user'); document.getElementById('app').classList.add('hidden'); document.getElementById('loginPage').classList.remove('hidden'); }
+function logout(){
+  S.user=null; localStorage.removeItem('fm_user');
+  if(window.FB?.ready && window._fbUid){ try{ window.FB.signOut(window.FB.auth); }catch(e){} }
+  window._fbUid = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginPage').classList.remove('hidden');
+}
+
+// ===== GOOGLE AUTH =====
+async function signInWithGoogle(){
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  if(!window.FB?.ready){
+    errEl.textContent = 'Firebase aún no está listo, intenta de nuevo en un momento.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try{
+    const FB = window.FB;
+    const result = await FB.signInWithPopup(FB.auth, FB.googleProvider);
+    // onAuthStateChanged handler hará el resto (carga perfil, muestra app).
+    toast('Bienvenido, '+(result.user.displayName||result.user.email),'ok');
+  }catch(e){
+    console.error('[google sign-in]', e);
+    errEl.textContent = 'No se pudo iniciar sesión: '+(e?.message||'error desconocido');
+    errEl.classList.remove('hidden');
+  }
+}
+
+// Se ejecuta cuando Firebase notifica cambio de sesión.
+// Crea/carga el documento de usuario y sincroniza datos con la nube.
+async function onFirebaseAuthChanged(fbUser){
+  if(!fbUser){ window._fbUid = null; return; }
+  window._fbUid = fbUser.uid;
+  const FB = window.FB;
+  try{
+    // PASO 1 — ¿Es un atleta vinculado por algún coach?
+    const linkRef = FB.doc(FB.db, 'athleteLinks', fbUser.uid);
+    const linkSnap = await FB.getDoc(linkRef);
+    if(linkSnap.exists()){
+      await _loadAthleteSession(fbUser, linkSnap.data());
+      return;
+    }
+
+    // PASO 2 — Modo coach: carga o crea perfil
+    const userRef = FB.doc(FB.db, 'users', fbUser.uid);
+    const userSnap = await FB.getDoc(userRef);
+    let profile;
+    if(userSnap.exists()){
+      profile = userSnap.data();
+    } else {
+      profile = {
+        uid: fbUser.uid, email: fbUser.email, name: fbUser.displayName || fbUser.email,
+        photoURL: fbUser.photoURL || null, type: 'coach', createdAt: FB.serverTimestamp()
+      };
+      await FB.setDoc(userRef, profile);
+    }
+    S.user = { id: fbUser.uid, uid: fbUser.uid, email: profile.email, name: profile.name, type: profile.type, photoURL: profile.photoURL };
+    localStorage.setItem('fm_user', JSON.stringify(S.user));
+
+    // Sync global del coach (cloud → local o viceversa)
+    const dataRef = FB.doc(FB.db, 'userdata', fbUser.uid);
+    const dataSnap = await FB.getDoc(dataRef);
+    if(dataSnap.exists()){
+      const cloud = dataSnap.data();
+      if(cloud.db && cloud.version >= DB_VERSION){
+        DB = cloud.db;
+        if(!DB.nutritionReports) DB.nutritionReports = [];
+        if(!DB.weeklyMenus) DB.weeklyMenus = [];
+        localStorage.setItem('fm_db', JSON.stringify(DB));
+        localStorage.setItem('fm_db_version', DB_VERSION);
+        toast('Datos sincronizados desde la nube','ok');
+      }
+    } else if(DB && Object.keys(DB).length){
+      await FB.setDoc(dataRef, { db: DB, version: DB_VERSION, updatedAt: FB.serverTimestamp() });
+      toast('Tus datos locales se han subido a la nube','ok');
+    }
+
+    // Suscripción a actualizaciones del espejo enviadas por sus atletas
+    _subscribeAthleteMirrors();
+
+    if(document.getElementById('loginPage') && !document.getElementById('loginPage').classList.contains('hidden')){
+      showApp();
+    }
+  }catch(e){
+    console.error('[auth changed]', e);
+    toast('Error al cargar tu perfil: '+(e?.message||''),'error');
+  }
+}
+
+// Carga una sesión en modo atleta — reemplaza DB con un slice mínimo para
+// que las vistas `athlete-*` funcionen sin cambios.
+async function _loadAthleteSession(fbUser, link){
+  const FB = window.FB;
+  const planRef = FB.doc(FB.db, 'athletePlans', fbUser.uid);
+  const planSnap = await FB.getDoc(planRef);
+  if(!planSnap.exists()){
+    toast('Tu entrenador aún no ha publicado tu plan','warn');
+    return;
+  }
+  const data = planSnap.data();
+  const prof = data.profile || {};
+  const athleteId = 1;
+  const userId = 1;
+
+  // DB local mínima — solo el propio atleta
+  DB = {
+    users: [{id:userId, name: prof.name || fbUser.displayName || fbUser.email, email: fbUser.email, type:'athlete'}],
+    athletes: [{
+      id: athleteId, userId, coachId: null, name: prof.name || fbUser.displayName || fbUser.email,
+      sport: prof.sport||'', age: prof.age||null, weight: prof.weight||null, height: prof.height||null,
+      level: prof.level||'', cmjBase: prof.cmjBase||null, photo: prof.photo||null,
+      googleUid: fbUser.uid, coachUid: link.coachUid
+    }],
+    plans: data.plan ? [{...data.plan, athleteId}] : [],
+    sessions: [], cmj: [], wellness: [], reports: [], nutritionReports: [], weeklyMenus: []
+  };
+  // Fusionar realByKey (ediciones previas del atleta) dentro de los ejercicios del plan
+  if(data.realByKey && DB.plans[0]?.detailedSessions){
+    Object.entries(data.realByKey).forEach(([k, real])=>{
+      const [mesoMicro, siStr, eiStr] = k.split('_');
+      const sess = DB.plans[0].detailedSessions[mesoMicro];
+      const ex = sess?.[+siStr]?.exercises?.[+eiStr];
+      if(ex) ex.real = real;
+    });
+  }
+  localStorage.setItem('fm_db', JSON.stringify(DB));
+
+  S.user = { id: userId, uid: fbUser.uid, email: fbUser.email, name: prof.name || fbUser.displayName, type: 'athlete', photoURL: fbUser.photoURL||null };
+  localStorage.setItem('fm_user', JSON.stringify(S.user));
+
+  // Suscripción a cambios del plan en vivo
+  FB.onSnapshot(planRef, snap=>{
+    if(!snap.exists()) return;
+    const d = snap.data();
+    if(d.plan){ DB.plans[0] = {...d.plan, athleteId}; }
+    if(d.realByKey && DB.plans[0]?.detailedSessions){
+      Object.entries(d.realByKey).forEach(([k, real])=>{
+        const [mesoMicro, siStr, eiStr] = k.split('_');
+        const sess = DB.plans[0].detailedSessions[mesoMicro];
+        const ex = sess?.[+siStr]?.exercises?.[+eiStr];
+        if(ex) ex.real = real;
+      });
+    }
+    localStorage.setItem('fm_db', JSON.stringify(DB));
+    if(S.view && S.view.startsWith('athlete-')) navigate(S.view, S.params);
+  });
+
+  if(document.getElementById('loginPage') && !document.getElementById('loginPage').classList.contains('hidden')){
+    showApp();
+  }
+  toast('Plan cargado desde tu entrenador','ok');
+}
+
+// Para el coach — listen on /athletePlans docs where coachUid === mine
+// para capturar las ediciones reales que haga el atleta desde su móvil.
+let _mirrorUnsubs = [];
+function _subscribeAthleteMirrors(){
+  _mirrorUnsubs.forEach(u=>{ try{u();}catch(e){} });
+  _mirrorUnsubs = [];
+  const FB = window.FB;
+  (DB.athletes||[]).forEach(ath=>{
+    if(!ath.googleUid) return;
+    const ref = FB.doc(FB.db, 'athletePlans', ath.googleUid);
+    const unsub = FB.onSnapshot(ref, snap=>{
+      if(!snap.exists()) return;
+      const d = snap.data();
+      if(!d.realByKey) return;
+      const plan = DB.plans.find(p=>p.athleteId===ath.id);
+      if(!plan?.detailedSessions) return;
+      let changed = false;
+      Object.entries(d.realByKey).forEach(([k, real])=>{
+        const [mesoMicro, siStr, eiStr] = k.split('_');
+        const ex = plan.detailedSessions[mesoMicro]?.[+siStr]?.exercises?.[+eiStr];
+        if(ex){
+          const before = JSON.stringify(ex.real||{});
+          ex.real = {...(ex.real||{}), ...real};
+          if(JSON.stringify(ex.real) !== before) changed = true;
+        }
+      });
+      if(changed){
+        localStorage.setItem('fm_db', JSON.stringify(DB));
+        if(S.view === 'coach-sesiones-detail' || S.view === 'coach-athlete-detail'){
+          navigate(S.view, S.params);
+        }
+      }
+    });
+    _mirrorUnsubs.push(unsub);
+  });
+}
+
+// Enganche del listener en cuanto Firebase esté listo.
+function _wireFirebaseAuth(){
+  if(!window.FB?.ready) return;
+  window.FB.onAuthStateChanged(window.FB.auth, onFirebaseAuthChanged);
+}
+if(window.FB?.ready){ _wireFirebaseAuth(); }
+else { window.addEventListener('firebase-ready', _wireFirebaseAuth, {once:true}); }
 function showApp(){
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
@@ -2387,6 +2706,28 @@ function viewSesionesDetail(){
           : `<span class="vol-auto-badge" title="Volumen = Σ (kg × repeticiones)">AUTO</span>`}
       </span>`;
 
+    // Tabla ESPEJO — pesos reales del atleta (editable por el atleta, visible por el coach)
+    const realRows = ses.exercises.map((ex,ei)=>{
+      const r = ex.real || {};
+      const adh = computeAdherence(ex);
+      const devLbl = adh==null ? '' : (adh-100>0?'▲':adh-100<0?'▼':'=')+Math.abs(adh-100)+'%';
+      const devCls = adh==null ? 'dev-cell' : 'dev-cell '+(adh-100>0?'dev-up':adh-100<0?'dev-down':'dev-eq');
+      return `<tr>
+        <td class="ex-name">${ex.name||'—'}</td>
+        <td><input value="${r.kg||''}" placeholder="kg" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'kg',this.value)" style="width:55px;text-align:center"></td>
+        <td><input value="${r.s1||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s1',this.value)"></td>
+        <td><input value="${r.s2||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s2',this.value)"></td>
+        <td><input value="${r.s3||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s3',this.value)"></td>
+        <td><input value="${r.s4||''}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s4',this.value)"></td>
+        <td><input value="${r.rir||''}" placeholder="RIR" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'rir',this.value)"></td>
+        <td><input value="${r.note||''}" placeholder="nota" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'note',this.value)"></td>
+        <td class="${devCls}" data-dev="${key}-${si}-${ei}">${devLbl}</td>
+      </tr>`;
+    }).join('');
+    const adhsAll = ses.exercises.map(e=>computeAdherence(e)).filter(x=>x!=null);
+    const avgAdh = adhsAll.length ? Math.round(adhsAll.reduce((a,b)=>a+b,0)/adhsAll.length) : null;
+    const adhCls = avgAdh==null ? '' : (avgAdh>=90&&avgAdh<=110?'ok':avgAdh>=75&&avgAdh<=125?'warn':'danger');
+
     return `
       <div class="ses-card">
         <div class="ses-card-title">
@@ -2402,6 +2743,16 @@ function viewSesionesDetail(){
           <thead><tr><th>Ejercicio</th><th>Kg</th><th>Serie 1</th><th>Serie 2</th><th>Serie 3</th><th>Serie 4</th><th>RIR</th><th>Desc.</th><th></th></tr></thead>
           <tbody>${exRows}</tbody>
         </table></div>
+        <div class="ses-mirror">
+          <div class="ses-mirror-header">
+            <span><i class="fas fa-user" style="margin-right:6px"></i>SESIÓN REAL DEL ATLETA</span>
+            <span class="adh-badge ${adhCls}" data-adh="${key}-${si}">${avgAdh==null?'Pendiente de registro':'Cumplimiento: '+avgAdh+'%'}</span>
+          </div>
+          <div class="tbl-wrap"><table class="ses-exercises">
+            <thead><tr><th>Ejercicio</th><th>Kg real</th><th>Serie 1</th><th>Serie 2</th><th>Serie 3</th><th>Serie 4</th><th>RIR</th><th>Nota</th><th>Δ</th></tr></thead>
+            <tbody>${realRows}</tbody>
+          </table></div>
+        </div>
         <div class="ses-add-ex">
           <button onclick="addSesExercise(${selAth},'${key}',${si})" title="Añadir una fila de ejercicio"><i class="fas fa-plus" style="margin-right:4px"></i>Añadir ejercicio</button>
         </div>
@@ -2480,6 +2831,65 @@ function resetSesVolume(athId, key, sesIdx){
   navigate(S.view, S.params);
 }
 
+// Parsea una celda de serie ("8", "8x45", "10 x 60") devolviendo {reps, kg}.
+// Si no hay kg explícito en la celda, cae al kg global del ejercicio (param).
+function parseSerieCell(cellVal, fallbackKg){
+  const raw = (cellVal||'').toString().trim();
+  if(!raw) return {reps:0, kg:0};
+  const m = raw.match(/^(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)$/i);
+  if(m) return {reps:parseFloat(m[1]), kg:parseFloat(m[2])};
+  const justReps = parseFloat(raw);
+  if(isNaN(justReps)) return {reps:0, kg:0};
+  return {reps:justReps, kg:parseFloat(fallbackKg)||0};
+}
+// Volumen total de un ejercicio (Σ reps × kg de sus 4 series).
+function computeExerciseVolume(ex, kgField='kg', sFields=['s1','s2','s3','s4']){
+  let vol = 0;
+  sFields.forEach(sf=>{
+    const {reps,kg} = parseSerieCell(ex[sf], ex[kgField]);
+    vol += reps*kg;
+  });
+  return vol;
+}
+// % cumplimiento de un ejercicio: real / diseñado (en volumen).
+function computeAdherence(ex){
+  const real = ex.real || {};
+  const volPlan = computeExerciseVolume(ex);
+  const volReal = computeExerciseVolume({...real, kg: real.kg ?? ex.kg});
+  if(volPlan<=0) return null;
+  return Math.round((volReal/volPlan)*100);
+}
+// Guardar un campo de la fila "real" (sesión ejecutada por el atleta).
+function saveSesRealEx(athId, key, sesIdx, exIdx, field, value){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const ex = plan.detailedSessions[key][sesIdx].exercises[exIdx];
+  if(!ex) return;
+  ex.real = ex.real || {};
+  ex.real[field] = value;
+  save();
+  // Refrescar badge de desviación en vivo, sin re-render (no perder foco).
+  const adh = computeAdherence(ex);
+  const cell = document.querySelector(`[data-dev="${key}-${sesIdx}-${exIdx}"]`);
+  if(cell){
+    if(adh==null){ cell.textContent=''; cell.className='dev-cell'; }
+    else {
+      const diff = adh - 100;
+      cell.textContent = (diff>0?'▲':diff<0?'▼':'=')+Math.abs(diff)+'%';
+      cell.className = 'dev-cell ' + (diff>0?'dev-up':diff<0?'dev-down':'dev-eq');
+    }
+  }
+  const hdr = document.querySelector(`[data-adh="${key}-${sesIdx}"]`);
+  if(hdr){
+    const ses = plan.detailedSessions[key][sesIdx];
+    const adhs = ses.exercises.map(e=>computeAdherence(e)).filter(x=>x!=null);
+    if(adhs.length){
+      const avg = Math.round(adhs.reduce((a,b)=>a+b,0)/adhs.length);
+      hdr.textContent = 'Cumplimiento: '+avg+'%';
+      hdr.className = 'adh-badge ' + (avg>=90&&avg<=110?'ok':avg>=75&&avg<=125?'warn':'danger');
+    }
+  }
+}
 function saveSesEx(athId, key, sesIdx, exIdx, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
   if(plan && plan.detailedSessions && plan.detailedSessions[key]){
@@ -3184,6 +3594,269 @@ const YIELD_FACTORS = {
 // ===== Free Foods (alimentos libres, <5 kcal por porci\u00f3n) =====
 const FREE_FOODS = ['Agua','Caf\u00e9 sin az\u00facar','T\u00e9 sin az\u00facar','Infusiones','Caldo de verduras desgrasado','Especias','Hierbas arom\u00e1ticas','Vinagre','Lim\u00f3n','Mostaza','Salsa picante','Ajo','Jengibre','Canela','C\u00farcuma','Pimienta','Or\u00e9gano','Stevia','Eritritol','Sal (con moderaci\u00f3n)','Lechuga iceberg','Pepino (menos de 50g)','R\u00e1bano','Apio (menos de 50g)','Espinaca cruda (1 taza)'];
 
+// ======================================================================
+// ===== MICRONUTRIENTES (EFSA 2024) — DRVs y composicion por grupo =====
+// ======================================================================
+
+// Catalogo de micronutrientes con metadatos de visualizacion.
+// Fuentes: EFSA DRV 2017, actualizaciones 2023-2024 (B6, Se, Mn, Fe), IOM/NIH.
+const MICRO_CATALOG = {
+  // Vitaminas
+  vitA:   {label:'Vit. A',   unit:'\u00b5g RAE', group:'vit', color:'#D58A3B', icon:'fa-eye',           desc:'Retinol + beta-caroteno (ratio 1:12 dieta, 1:2 suplemento).'},
+  vitB1:  {label:'Vit. B1',  unit:'mg',          group:'vit', color:'#C47820', icon:'fa-bolt',          desc:'Tiamina \u2014 metabolismo energetico.'},
+  vitB2:  {label:'Vit. B2',  unit:'mg',          group:'vit', color:'#C47820', icon:'fa-bolt',          desc:'Riboflavina \u2014 cadena respiratoria.'},
+  vitB3:  {label:'Vit. B3',  unit:'mg NE',       group:'vit', color:'#C47820', icon:'fa-bolt',          desc:'Niacina \u2014 funcion celular.'},
+  vitB6:  {label:'Vit. B6',  unit:'mg',          group:'vit', color:'#C47820', icon:'fa-bolt',          desc:'Piridoxina \u2014 UL reducido a 12.5 mg/d (EFSA mayo 2023).'},
+  vitB9:  {label:'Folato',   unit:'\u00b5g DFE', group:'vit', color:'#9E8035', icon:'fa-leaf',          desc:'Folato natural + acido folico x1.7. Embarazo 600.'},
+  vitB12: {label:'Vit. B12', unit:'\u00b5g',     group:'vit', color:'#A04040', icon:'fa-drumstick-bite',desc:'Cobalamina \u2014 solo origen animal/fortificados.'},
+  vitC:   {label:'Vit. C',   unit:'mg',          group:'vit', color:'#4A7A5A', icon:'fa-apple-alt',     desc:'Acido ascorbico \u2014 potencia absorcion de hierro no-hemo.'},
+  vitD:   {label:'Vit. D',   unit:'\u00b5g',     group:'vit', color:'#E6B233', icon:'fa-sun',           desc:'Sintesis cutanea + dieta. x0.025 para IU->\u00b5g.'},
+  vitE:   {label:'Vit. E',   unit:'mg aTE',      group:'vit', color:'#7B6EAA', icon:'fa-seedling',      desc:'Alfa-tocoferol. Natural x0.67 para IU.'},
+  vitK:   {label:'Vit. K',   unit:'\u00b5g',     group:'vit', color:'#2D7A5C', icon:'fa-leaf',          desc:'Filoquinona \u2014 coagulacion y hueso.'},
+  // Minerales
+  calcio: {label:'Calcio',   unit:'mg',          group:'min', color:'#A89578', icon:'fa-bone',          desc:'Hueso y contraccion muscular. Oxalatos (espinacas) reducen absorcion.'},
+  hierro: {label:'Hierro',   unit:'mg',          group:'min', color:'#A04040', icon:'fa-tint',          desc:'Hemo (animal 15-35%) vs no-hemo (vegetal 2-20%). UL 40 mg/d (EFSA 2024).'},
+  magnesio:{label:'Magnesio',unit:'mg',          group:'min', color:'#5B8AA0', icon:'fa-atom',          desc:'Funcion neuromuscular y 300+ enzimas.'},
+  zinc:   {label:'Zinc',     unit:'mg',          group:'min', color:'#8A8A8A', icon:'fa-shield-alt',    desc:'Inmunidad. Biodisp. baja (15%) / moderada (30%) / alta (50%) segun fitatos.'},
+  yodo:   {label:'Yodo',     unit:'\u00b5g',     group:'min', color:'#7B4EAA', icon:'fa-dna',           desc:'Hormonas tiroideas. Lactancia 200 \u00b5g/d.'},
+  selenio:{label:'Selenio',  unit:'\u00b5g',     group:'min', color:'#6B5930', icon:'fa-shield-alt',    desc:'Antioxidante. UL 255 \u00b5g/d (EFSA 2023).'},
+  potasio:{label:'Potasio',  unit:'mg',          group:'min', color:'#4A7A5A', icon:'fa-bolt',          desc:'Balance hidro-electrico.'},
+  fosforo:{label:'Fosforo',  unit:'mg',          group:'min', color:'#8B7340', icon:'fa-cube',          desc:'Mineralizacion osea y ATP.'},
+  sodio:  {label:'Sodio',    unit:'mg',          group:'min', color:'#A04040', icon:'fa-exclamation-triangle',desc:'LIMITE superior recomendado \u2014 evitar exceso.', isLimit:true}
+};
+
+// Valores de Referencia Dieteticos (EFSA PRI/AI). Adulto 18-65 por defecto.
+// Incluye UL (Tolerable Upper Intake Level) cuando EFSA lo ha establecido.
+const DRV_EFSA = {
+  vitA:   { base:{H:750, M:650},   ul:3000,  child:{'1-3':250,'4-6':300,'7-10':400,'11-14':600,'15-17':750}, preg:700, lact:1300 },
+  vitB1:  { base:{H:1.1, M:0.9},   ul:null,  child:{'1-3':0.5,'4-6':0.7,'7-10':0.8,'11-14':1.0,'15-17':1.1}, preg:1.0, lact:1.1 },
+  vitB2:  { base:{H:1.6, M:1.6},   ul:null,  child:{'1-3':0.6,'4-6':0.7,'7-10':1.1,'11-14':1.4,'15-17':1.6}, preg:1.9, lact:2.0 },
+  vitB3:  { base:{H:16,  M:16},    ul:10,    child:{'1-3':6,  '4-6':8,  '7-10':11, '11-14':14, '15-17':16 }, preg:16,  lact:16 },
+  vitB6:  { base:{H:1.7, M:1.6},   ul:12.5,  child:{'1-3':0.6,'4-6':0.7,'7-10':1.0,'11-14':1.4,'15-17':1.6}, preg:1.8, lact:1.7 },
+  vitB9:  { base:{H:330, M:330},   ul:1000,  child:{'1-3':120,'4-6':140,'7-10':200,'11-14':270,'15-17':330}, preg:600, lact:500 },
+  vitB12: { base:{H:4.0, M:4.0},   ul:null,  child:{'1-3':1.5,'4-6':1.5,'7-10':2.5,'11-14':3.5,'15-17':4.0}, preg:4.5, lact:5.0 },
+  vitC:   { base:{H:110, M:95},    ul:null,  child:{'1-3':20, '4-6':30, '7-10':45, '11-14':70, '15-17':100}, preg:105, lact:155 },
+  vitD:   { base:{H:15,  M:15},    ul:100,   child:{'1-3':15, '4-6':15, '7-10':15, '11-14':15, '15-17':15 }, preg:15,  lact:15 },
+  vitE:   { base:{H:13,  M:11},    ul:300,   child:{'1-3':6,  '4-6':9,  '7-10':9,  '11-14':11, '15-17':13 }, preg:11,  lact:11 },
+  vitK:   { base:{H:70,  M:70},    ul:null,  child:{'1-3':12, '4-6':20, '7-10':45, '11-14':45, '15-17':65 }, preg:70,  lact:70 },
+  calcio: { base:{H:950, M:950},   ul:2500,  child:{'1-3':450,'4-6':800,'7-10':800,'11-14':1150,'15-17':1150}, preg:1000,lact:1000, seniorBoost:1.05 },
+  hierro: { base:{H:11,  M:16},    ul:40,    child:{'1-3':7,  '4-6':7,  '7-10':11, '11-14':11, '15-17':13 }, preg:16,  lact:16, postMenop:11 },
+  magnesio:{base:{H:350, M:300},   ul:250,   child:{'1-3':170,'4-6':230,'7-10':230,'11-14':300,'15-17':300}, preg:300, lact:300 },
+  zinc:   { base:{H:9.4, M:7.5},   ul:25,    child:{'1-3':4.3,'4-6':5.5,'7-10':7.4,'11-14':10.7,'15-17':14.2}, preg:10.5,lact:11.7 },
+  yodo:   { base:{H:150, M:150},   ul:600,   child:{'1-3':90, '4-6':90, '7-10':90, '11-14':120,'15-17':130}, preg:200, lact:200 },
+  selenio:{ base:{H:70,  M:70},    ul:255,   child:{'1-3':15, '4-6':20, '7-10':35, '11-14':55, '15-17':70 }, preg:70,  lact:85 },
+  potasio:{ base:{H:3500,M:3500},  ul:null,  child:{'1-3':800,'4-6':1100,'7-10':1800,'11-14':2700,'15-17':3500}, preg:3500, lact:4000 },
+  fosforo:{ base:{H:550, M:550},   ul:4000,  child:{'1-3':250,'4-6':440,'7-10':440,'11-14':640,'15-17':640}, preg:550, lact:550 },
+  sodio:  { base:{H:2000,M:2000},  ul:2300,  child:{'1-3':1100,'4-6':1300,'7-10':1700,'11-14':2000,'15-17':2000}, preg:2000,lact:2000 }
+};
+
+// Ajustes por perfil fisiologico (multiplicador sobre valor base).
+// Deportista: +20% vitaminas B (metabolismo energetico), +15% Mg/Zn/Fe (perdidas por sudor/orina), +10% antioxidantes (C/E/Se).
+const PROFILE_ADJUSTMENTS = {
+  general:    {},
+  deportista: {vitB1:1.20, vitB2:1.20, vitB3:1.20, vitB6:1.20, vitB12:1.15, vitC:1.10, vitE:1.10, hierro:1.15, magnesio:1.15, zinc:1.15, selenio:1.10, potasio:1.10, sodio:1.25},
+  embarazo:   {useOverride:'preg'},
+  lactancia:  {useOverride:'lact'},
+  mayor:      {vitB12:1.30, vitD:1.50, calcio:1.10}
+};
+
+// Devuelve el rango de edad (clave para datos pediatricos de DRV_EFSA).
+function ageRangeKey(age){
+  if(age<=3) return '1-3';
+  if(age<=6) return '4-6';
+  if(age<=10) return '7-10';
+  if(age<=14) return '11-14';
+  if(age<=17) return '15-17';
+  return null;
+}
+
+// Devuelve el DRV de referencia para un perfil {age, sex, state}.
+// state = 'general' | 'deportista' | 'embarazo' | 'lactancia' | 'mayor'
+function getDRVProfile(age, sex, state){
+  state = state || 'general';
+  const sexKey = (sex==='hombre'||sex==='H'||sex==='m'||sex==='male') ? 'H' : 'M';
+  const ageKey = ageRangeKey(age);
+  const adj = PROFILE_ADJUSTMENTS[state] || {};
+  const isSenior = age >= 65;
+  const out = {};
+  Object.keys(DRV_EFSA).forEach(nk => {
+    const d = DRV_EFSA[nk];
+    let val;
+    if(adj.useOverride && d[adj.useOverride] !== undefined){
+      val = d[adj.useOverride];
+    } else if(ageKey && d.child && d.child[ageKey] !== undefined){
+      val = d.child[ageKey];
+    } else {
+      val = d.base[sexKey];
+      if(nk==='hierro' && sexKey==='M' && age >= 50 && d.postMenop) val = d.postMenop;
+    }
+    if(!adj.useOverride && adj[nk]) val = val * adj[nk];
+    if(isSenior && d.seniorBoost) val = val * d.seniorBoost;
+    out[nk] = Math.round(val * 100) / 100;
+  });
+  return out;
+}
+
+// Composicion micronutriente por EQUIVALENTE SMAE (valores medios USDA/BEDCA).
+const SMAE_MICRO = {
+  verduras:    {vitA:180, vitB1:0.07, vitB2:0.09, vitB3:0.6, vitB6:0.15, vitB9:45, vitB12:0, vitC:28, vitD:0,    vitE:0.6, vitK:85,  calcio:40,  hierro:0.9, magnesio:22, zinc:0.3, yodo:3,   selenio:1,  potasio:260, fosforo:30,  sodio:20},
+  frutas:      {vitA:25,  vitB1:0.04, vitB2:0.04, vitB3:0.3, vitB6:0.10, vitB9:18, vitB12:0, vitC:25, vitD:0,    vitE:0.3, vitK:3,   calcio:12,  hierro:0.3, magnesio:11, zinc:0.15,yodo:1,   selenio:0.5,potasio:210, fosforo:15,  sodio:2},
+  cereales_sg: {vitA:0,   vitB1:0.12, vitB2:0.05, vitB3:1.5, vitB6:0.08, vitB9:28, vitB12:0, vitC:0,  vitD:0,    vitE:0.4, vitK:1,   calcio:15,  hierro:1.1, magnesio:26, zinc:0.7, yodo:2,   selenio:14, potasio:95,  fosforo:75,  sodio:140},
+  cereales_cg: {vitA:0,   vitB1:0.10, vitB2:0.08, vitB3:1.2, vitB6:0.07, vitB9:20, vitB12:0.1,vitC:0,  vitD:0.3,  vitE:0.8, vitK:2,   calcio:30,  hierro:1.0, magnesio:22, zinc:0.6, yodo:3,   selenio:11, potasio:88,  fosforo:78,  sodio:180},
+  leguminosas: {vitA:2,   vitB1:0.18, vitB2:0.08, vitB3:0.8, vitB6:0.17, vitB9:95, vitB12:0, vitC:1,  vitD:0,    vitE:0.3, vitK:3,   calcio:30,  hierro:2.4, magnesio:38, zinc:1.0, yodo:3,   selenio:3,  potasio:360, fosforo:130, sodio:3},
+  aoa_mb:      {vitA:8,   vitB1:0.06, vitB2:0.10, vitB3:4.5, vitB6:0.22, vitB9:4,  vitB12:0.7,vitC:0,  vitD:0.2,  vitE:0.2, vitK:1,   calcio:8,   hierro:0.6, magnesio:10, zinc:0.8, yodo:7,   selenio:10, potasio:110, fosforo:85,  sodio:45},
+  aoa_bg:      {vitA:35,  vitB1:0.05, vitB2:0.15, vitB3:3.8, vitB6:0.18, vitB9:10, vitB12:0.9,vitC:0,  vitD:1.5,  vitE:0.4, vitK:2,   calcio:45,  hierro:0.7, magnesio:9,  zinc:0.9, yodo:10,  selenio:8,  potasio:100, fosforo:90,  sodio:60},
+  aoa_mg:      {vitA:20,  vitB1:0.08, vitB2:0.11, vitB3:3.0, vitB6:0.15, vitB9:5,  vitB12:1.0,vitC:0,  vitD:0.5,  vitE:0.3, vitK:1,   calcio:70,  hierro:0.8, magnesio:8,  zinc:1.1, yodo:8,   selenio:9,  potasio:105, fosforo:110, sodio:120},
+  aoa_ag:      {vitA:15,  vitB1:0.10, vitB2:0.12, vitB3:2.5, vitB6:0.12, vitB9:3,  vitB12:0.8,vitC:0,  vitD:0.3,  vitE:0.2, vitK:0,   calcio:35,  hierro:0.9, magnesio:6,  zinc:1.2, yodo:6,   selenio:8,  potasio:95,  fosforo:90,  sodio:380},
+  leche_desc:  {vitA:50,  vitB1:0.09, vitB2:0.40, vitB3:0.2, vitB6:0.09, vitB9:12, vitB12:1.2,vitC:1,  vitD:2.2,  vitE:0.1, vitK:1,   calcio:290, hierro:0.1, magnesio:27, zinc:1.1, yodo:48,  selenio:6,  potasio:380, fosforo:230, sodio:105},
+  leche_semi:  {vitA:70,  vitB1:0.09, vitB2:0.40, vitB3:0.2, vitB6:0.09, vitB9:12, vitB12:1.1,vitC:1,  vitD:2.0,  vitE:0.1, vitK:1,   calcio:280, hierro:0.1, magnesio:26, zinc:1.0, yodo:45,  selenio:6,  potasio:370, fosforo:225, sodio:100},
+  leche_entera:{vitA:100, vitB1:0.09, vitB2:0.38, vitB3:0.2, vitB6:0.09, vitB9:12, vitB12:1.0,vitC:1,  vitD:1.8,  vitE:0.2, vitK:2,   calcio:275, hierro:0.1, magnesio:24, zinc:1.0, yodo:42,  selenio:5,  potasio:360, fosforo:220, sodio:98},
+  grasas_sp:   {vitA:4,   vitB1:0,    vitB2:0,    vitB3:0,   vitB6:0,    vitB9:0,  vitB12:0, vitC:0,  vitD:0,    vitE:2.0, vitK:6,   calcio:1,   hierro:0.1, magnesio:0,  zinc:0,   yodo:0,   selenio:0,  potasio:5,   fosforo:1,   sodio:30},
+  grasas_cp:   {vitA:2,   vitB1:0.03, vitB2:0.05, vitB3:0.5, vitB6:0.05, vitB9:8,  vitB12:0, vitC:0,  vitD:0,    vitE:3.0, vitK:2,   calcio:30,  hierro:0.6, magnesio:30, zinc:0.7, yodo:0.5, selenio:2,  potasio:120, fosforo:80,  sodio:35},
+  azucares_sg: {vitA:0,   vitB1:0,    vitB2:0.01, vitB3:0.05,vitB6:0,    vitB9:0,  vitB12:0, vitC:0.5,vitD:0,    vitE:0,   vitK:0,   calcio:4,   hierro:0.1, magnesio:2,  zinc:0.05,yodo:0,   selenio:0.5,potasio:22,  fosforo:2,   sodio:12},
+  azucares_cg: {vitA:10,  vitB1:0.02, vitB2:0.04, vitB3:0.2, vitB6:0.02, vitB9:3,  vitB12:0.1,vitC:0,  vitD:0.1,  vitE:0.3, vitK:1,   calcio:30,  hierro:0.4, magnesio:15, zinc:0.3, yodo:2,   selenio:1,  potasio:110, fosforo:45,  sodio:55}
+};
+
+// Calcula la ingesta total de micronutrientes a partir de un diccionario de equivalentes SMAE.
+function computeMicroIntake(eq){
+  const intake = {};
+  Object.keys(MICRO_CATALOG).forEach(nk => intake[nk] = 0);
+  Object.keys(eq || {}).forEach(smaeId => {
+    const n = eq[smaeId] || 0;
+    const comp = SMAE_MICRO[smaeId];
+    if(!n || !comp) return;
+    Object.keys(comp).forEach(nk => {
+      intake[nk] = (intake[nk] || 0) + (comp[nk] || 0) * n;
+    });
+  });
+  return intake;
+}
+
+// Nutrient Adequacy Ratio. Para sodio (isLimit) invertimos: < DRV = 1, > DRV decrece.
+function calcNAR(intake, drv, nutrientKey){
+  const meta = MICRO_CATALOG[nutrientKey];
+  const i = intake || 0;
+  const d = drv || 0;
+  if(!d) return {raw:0, capped:0};
+  if(meta && meta.isLimit){
+    const ratio = Math.max(0, 1 - Math.max(0, i - d) / d);
+    return {raw:ratio, capped:ratio};
+  }
+  const raw = i / d;
+  return {raw, capped: Math.min(1, raw)};
+}
+
+// Mean Adequacy Ratio: media aritmetica de los NARs capeados al 100% (excluye limites).
+function calcMAR(intakes, drvs){
+  const keys = Object.keys(MICRO_CATALOG).filter(k => !MICRO_CATALOG[k].isLimit);
+  const sum = keys.reduce((s,k) => s + calcNAR(intakes[k], drvs[k], k).capped, 0);
+  return sum / keys.length;
+}
+
+// Clasifica un NAR en zona (color + label) para el gauge.
+function narZone(pct, hasUL, ulPct){
+  if(pct < 33)  return {label:'Deficiente',   color:'#A04040', bg:'rgba(160,64,64,.12)'};
+  if(pct < 66)  return {label:'Insuficiente', color:'#C47820', bg:'rgba(196,120,32,.12)'};
+  if(pct <= 110) return {label:'\u00d3ptimo', color:'#4A7A5A', bg:'rgba(74,122,90,.12)'};
+  if(hasUL && ulPct && pct >= ulPct) return {label:'Exceso (UL)', color:'#A04040', bg:'rgba(160,64,64,.20)'};
+  return {label:'Por encima', color:'#9E8035', bg:'rgba(158,128,53,.12)'};
+}
+
+// Construye el SVG de un gauge radial de 180 grados para un nutriente.
+function buildNutrientGauge(nutKey, intake, drv, ulAbsolute){
+  const meta = MICRO_CATALOG[nutKey];
+  const pctRaw = drv ? (intake / drv) * 100 : 0;
+  const pct = Math.min(180, pctRaw);
+  const ulPct = (ulAbsolute && drv) ? (ulAbsolute / drv) * 100 : null;
+  const z = narZone(pctRaw, !!ulAbsolute, ulPct);
+  const R = 38, cx = 50, cy = 50;
+  const startAngle = Math.PI;
+  const arcFrac = Math.min(1, pct / 100);
+  const angle = startAngle + arcFrac * Math.PI;
+  const x1 = cx + R * Math.cos(startAngle);
+  const y1 = cy + R * Math.sin(startAngle);
+  const x2 = cx + R * Math.cos(angle);
+  const y2 = cy + R * Math.sin(angle);
+  const largeArc = arcFrac > 0.5 ? 1 : 0;
+  const arcPath = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${R} ${R} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  const bgX2 = cx + R * Math.cos(2*Math.PI);
+  const bgY2 = cy + R * Math.sin(2*Math.PI);
+  const bgPath = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${R} ${R} 0 1 1 ${bgX2.toFixed(2)} ${bgY2.toFixed(2)}`;
+  let ulMarker = '';
+  if(ulPct && ulPct <= 180){
+    const ulAngle = startAngle + Math.min(1, ulPct/100) * Math.PI;
+    const ulX1 = cx + (R-5) * Math.cos(ulAngle);
+    const ulY1 = cy + (R-5) * Math.sin(ulAngle);
+    const ulX2 = cx + (R+5) * Math.cos(ulAngle);
+    const ulY2 = cy + (R+5) * Math.sin(ulAngle);
+    ulMarker = `<line x1="${ulX1.toFixed(2)}" y1="${ulY1.toFixed(2)}" x2="${ulX2.toFixed(2)}" y2="${ulY2.toFixed(2)}" stroke="#A04040" stroke-width="1.5"/>`;
+  }
+  const displayIntake = intake >= 10 ? intake.toFixed(0) : intake.toFixed(2);
+  const displayDrv    = drv    >= 10 ? drv.toFixed(0)    : drv.toFixed(1);
+  return `
+    <div class="nut-gauge" style="background:${z.bg};border:1px solid ${z.color}33" title="${meta.desc}">
+      <div class="nut-gauge-label"><i class="fas ${meta.icon}" style="color:${z.color}"></i> ${meta.label}</div>
+      <svg viewBox="0 0 100 58" style="width:100%;max-width:120px;display:block;margin:0 auto">
+        <path d="${bgPath}" fill="none" stroke="#E6DEC8" stroke-width="8" stroke-linecap="round"/>
+        <path d="${arcPath}" fill="none" stroke="${z.color}" stroke-width="8" stroke-linecap="round"/>
+        ${ulMarker}
+        <text x="50" y="50" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="14" font-weight="700" fill="${z.color}">${pctRaw.toFixed(0)}%</text>
+      </svg>
+      <div class="nut-gauge-vals">
+        <span class="nut-gauge-intake">${displayIntake}</span>
+        <span class="nut-gauge-sep">/</span>
+        <span class="nut-gauge-drv">${displayDrv}</span>
+        <span class="nut-gauge-unit">${meta.unit}</span>
+      </div>
+      <div class="nut-gauge-zone" style="color:${z.color}">${z.label}</div>
+    </div>`;
+}
+
+// Re-renderiza el panel de micronutrientes usando la última eq calculada
+// (no recalcula SMAE). Se dispara al cambiar el selector de perfil fisiológico.
+function rerenderMicroPanel(){
+  const eq = window._nutLastMaintEq;
+  const args = window._nutLastProfileArgs;
+  const panel = document.getElementById('nutMicroPanel');
+  if(!eq || !args || !panel) return;
+  const profile = document.getElementById('nutProfile')?.value || 'general';
+  panel.innerHTML = renderMicroPanel(eq, args.age, args.sex, profile);
+}
+
+// Renderiza el panel completo de micronutrientes (MAR + vitaminas + minerales).
+function renderMicroPanel(eq, age, sex, state){
+  const drvs = getDRVProfile(age, sex, state);
+  const intake = computeMicroIntake(eq);
+  const mar = calcMAR(intake, drvs);
+  const marPct = (mar * 100).toFixed(0);
+  const marColor = mar >= 0.85 ? '#4A7A5A' : mar >= 0.6 ? '#C47820' : '#A04040';
+  const marLabel = mar >= 0.85 ? 'Dieta bien cubierta' : mar >= 0.6 ? 'Cobertura parcial' : 'Cobertura baja';
+  const vitKeys = Object.keys(MICRO_CATALOG).filter(k => MICRO_CATALOG[k].group==='vit');
+  const minKeys = Object.keys(MICRO_CATALOG).filter(k => MICRO_CATALOG[k].group==='min');
+  const vitGauges = vitKeys.map(k => buildNutrientGauge(k, intake[k], drvs[k], DRV_EFSA[k].ul)).join('');
+  const minGauges = minKeys.map(k => buildNutrientGauge(k, intake[k], drvs[k], DRV_EFSA[k].ul)).join('');
+  const stateLabels = {general:'General',deportista:'Deportista',embarazo:'Embarazo',lactancia:'Lactancia',mayor:'Mayor de 65'};
+  return `
+    <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;margin-bottom:16px;padding:14px 16px;background:linear-gradient(90deg, ${marColor}11 0%, ${marColor}04 100%);border-left:3px solid ${marColor};border-radius:3px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">\u00cdndice MAR \u2014 Calidad global de la dieta</div>
+        <div style="font-family:'DM Sans',var(--sans);font-size:26px;font-weight:700;color:${marColor}">${marPct}%</div>
+        <div style="font-size:11px;color:${marColor};font-weight:600">${marLabel}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Perfil</div>
+        <div style="font-family:'DM Sans',var(--sans);font-size:14px;font-weight:600;color:var(--primary)">${stateLabels[state]||'General'}</div>
+        <div style="font-size:10px;color:var(--muted)">${age} a. \u00b7 ${sex==='hombre'?'Hombre':'Mujer'}</div>
+      </div>
+    </div>
+    <div class="info-box mb-12"><i class="fas fa-flask"></i> C\u00e1lculo basado en valores EFSA 2024 (PRI / AI / UL). Los porcentajes se obtienen de la distribuci\u00f3n SMAE de mantenimiento. Cada gauge: rojo &lt;33% deficiente \u00b7 naranja 33-66% insuficiente \u00b7 verde 66-110% \u00f3ptimo \u00b7 la marca roja indica el UL (Nivel Superior de Ingesta Tolerable).</div>
+    <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--primary);letter-spacing:.5px;margin:18px 0 10px"><i class="fas fa-pills"></i> VITAMINAS</div>
+    <div class="nut-gauge-grid">${vitGauges}</div>
+    <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--primary);letter-spacing:.5px;margin:22px 0 10px"><i class="fas fa-atom"></i> MINERALES</div>
+    <div class="nut-gauge-grid">${minGauges}</div>
+  `;
+}
+
 // Meal configurations per number of meals per day
 const NUT_MEAL_CONFIGS = {
   3: {
@@ -3688,6 +4361,16 @@ function viewNutricion(){
               <option value="1.9">Muy intenso — NAF 1.9</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Perfil fisiológico <span style="color:var(--muted);font-size:10px;font-weight:400">(para micronutrientes)</span></label>
+            <select id="nutProfile" onchange="rerenderMicroPanel()">
+              <option value="general" selected>General (adulto sano)</option>
+              <option value="deportista">Deportista (+20% vit B, +15% Fe/Mg/Zn)</option>
+              <option value="embarazo">Embarazo (folato 600 µg, Fe 16 mg)</option>
+              <option value="lactancia">Lactancia (yodo 200 µg, K 4000 mg)</option>
+              <option value="mayor">Mayor de 65 (+vit D, B12, Ca)</option>
+            </select>
+          </div>
         </div>
 
         <!-- Advanced customization -->
@@ -3765,6 +4448,12 @@ function viewNutricion(){
             <div class="info-box mb-12"><i class="fas fa-info-circle"></i>Raciones equivalentes diarias según el SMAE 5ª Ed. Cada ración puede sustituirse por cualquier alimento del mismo grupo en la porción indicada. Regla de Atwater: Proteínas 4 kcal/g · Grasas 9 kcal/g · Hidratos 4 kcal/g.</div>
             <div id="nutSMAEPanel"></div>
           </div>
+        </details>
+
+        <!-- Micronutrientes (Vitaminas + Minerales) -->
+        <details class="card mb-24" open style="border:1px solid var(--border);border-left:3px solid #7B4EAA;border-radius:4px">
+          <summary style="padding:14px 20px;cursor:pointer;font-family:var(--mono);font-size:12px;color:#7B4EAA;letter-spacing:.3px;font-weight:600"><i class="fas fa-pills" style="margin-right:6px"></i>VITAMINAS Y MINERALES — ADECUACIÓN EFSA</summary>
+          <div style="padding:16px 20px;border-top:1px solid var(--border)" id="nutMicroPanel"></div>
         </details>
 
         <!-- Yield Factors Reference -->
@@ -4111,7 +4800,7 @@ function calcNutricion(){
       </tr>`;
     }).join('');
     const totals = SMAE_GROUPS.filter(g=>eq[g.id]&&eq[g.id]>0).reduce((t,g)=>{const n=eq[g.id];return{k:t.k+n*g.kcal,p:t.p+n*g.prot,f:t.f+n*g.fat,c:t.c+n*g.carb};},{k:0,p:0,f:0,c:0});
-    return `<div style="margin-bottom:16px;min-width:0"><div style="font-family:var(--mono);font-size:11px;font-weight:600;margin-bottom:8px;letter-spacing:.5px">${goalLabel}</div>
+    const html = `<div style="margin-bottom:16px;min-width:0"><div style="font-family:var(--mono);font-size:11px;font-weight:600;margin-bottom:8px;letter-spacing:.5px">${goalLabel}</div>
     <div style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;table-layout:fixed"><colgroup><col style="width:32%"><col style="width:9%"><col style="width:23%"><col style="width:11%"><col style="width:8%"><col style="width:8%"><col style="width:9%"></colgroup><thead><tr><th style="text-align:left;padding:4px 4px;font-size:9px">Grupo</th><th style="padding:4px 2px;font-size:9px">Eq.</th><th style="text-align:left;padding:4px 4px;font-size:9px">Porción</th><th style="padding:4px 2px;font-size:9px">kcal</th><th style="padding:4px 2px;font-size:9px">P</th><th style="padding:4px 2px;font-size:9px">G</th><th style="padding:4px 2px;font-size:9px">HC</th></tr></thead>
     <tbody>${rows}
     <tr style="background:var(--bg);font-weight:700;font-size:10px"><td style="padding:4px">TOTAL</td><td></td><td></td>
@@ -4121,13 +4810,24 @@ function calcNutricion(){
       <td style="text-align:center;padding:3px 2px">${m.total.toFixed(0)}</td><td style="text-align:center;padding:3px 2px">${m.prot.toFixed(0)}</td>
       <td style="text-align:center;padding:3px 2px">${m.fat.toFixed(0)}</td><td style="text-align:center;padding:3px 2px">${m.carb.toFixed(0)}</td></tr>
     </tbody></table></div></div>`;
+    return {html, eq};
   }
+  const smaeLoss  = buildSMAETable(mLoss,  'Déficit (−'+calAdj+' kcal)');
+  const smaeMaint = buildSMAETable(mMaint, 'Mantenimiento');
+  const smaeGain  = buildSMAETable(mGain,  'Superávit (+'+calAdj+' kcal)');
   const smaePanel = document.getElementById('nutSMAEPanel');
   if(smaePanel) smaePanel.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px">`
-    + buildSMAETable(mLoss,'Déficit (−'+calAdj+' kcal)')
-    + buildSMAETable(mMaint,'Mantenimiento')
-    + buildSMAETable(mGain,'Superávit (+'+calAdj+' kcal)')
-    + '</div>';
+    + smaeLoss.html + smaeMaint.html + smaeGain.html + '</div>';
+
+  // ===== MICRONUTRIENTES (EFSA) =====
+  const profile = document.getElementById('nutProfile')?.value || 'general';
+  const microPanel = document.getElementById('nutMicroPanel');
+  if(microPanel){
+    microPanel.innerHTML = renderMicroPanel(smaeMaint.eq, age, sex, profile);
+  }
+  // Guardar eq para re-render al cambiar perfil sin re-calcular
+  window._nutLastMaintEq = smaeMaint.eq;
+  window._nutLastProfileArgs = {age, sex};
 
   // Yield Factors table
   const yieldEl = document.getElementById('nutYieldTable');
