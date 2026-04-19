@@ -1085,6 +1085,20 @@ function logout(){
 }
 
 // ===== GOOGLE AUTH =====
+// Copia el UID Firebase del usuario actual al portapapeles. Util para el atleta
+// que tiene que enviarlo a su coach para la vinculacion inicial.
+async function copyMyUid(){
+  const uid = window._fbUid;
+  if(!uid){ toast('Inicia sesión con Google primero','warn'); return; }
+  try{
+    await navigator.clipboard.writeText(uid);
+    toast('UID copiado — pégalo a tu entrenador','ok');
+  }catch(e){
+    // Fallback por si clipboard API no está disponible
+    prompt('Copia este UID y envíaselo a tu coach:', uid);
+  }
+}
+
 async function signInWithGoogle(){
   const errEl = document.getElementById('loginError');
   errEl.classList.add('hidden');
@@ -1338,6 +1352,11 @@ function renderSidebar(){
         <div class="avatar">${u.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
         <div><div class="u-name">${u.name}</div><div class="u-role">${isCoach?'Entrenador':'Atleta'}</div></div>
       </div>
+      ${window._fbUid ? `
+        <button class="logout-btn" style="background:rgba(91,79,138,.08);color:var(--primary);margin-bottom:6px" onclick="copyMyUid()" title="Copia tu UID Firebase — compártelo con tu coach para que te vincule">
+          <i class="fas fa-id-badge"></i> <span>Copiar mi UID</span>
+        </button>
+      ` : ''}
       <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span></button>
     </div>`;
 
@@ -1631,6 +1650,29 @@ function viewAthleteDetail(aid){
         <div class="card-title"><i class="fas fa-project-diagram" style="margin-right:6px"></i>Correlación Wellness — CMJ</div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">Cada punto representa un día. La tendencia muestra cómo el bienestar se relaciona con el rendimiento neuromuscular.</div>
         <div class="chart-box" style="height:280px"><canvas id="chartCorrelation"></canvas></div>
+      </div>
+
+      <!-- Cuenta Google vinculada (Fase 6 — acceso multi-dispositivo) -->
+      <div class="card mb-24">
+        <div class="card-title"><i class="fas fa-cloud" style="margin-right:6px"></i>Cuenta Google vinculada <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:var(--mono);letter-spacing:.5px;margin-left:4px">· acceso multi-dispositivo</span></div>
+        ${a.googleUid ? `
+          <div class="flex items-center justify-between" style="gap:12px;flex-wrap:wrap">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:12px;color:var(--ok);font-weight:600"><i class="fas fa-check-circle" style="margin-right:4px"></i>Atleta conectado</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${a.name} puede acceder a su plan desde móvil/tablet con su cuenta Google. Los datos sincronizan en tiempo real.</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;word-break:break-all">UID: ${a.googleUid}</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="unlinkAthleteGoogleUid(${aid})"><i class="fas fa-unlink"></i> Desvincular</button>
+          </div>
+        ` : `
+          <div class="flex items-center justify-between" style="gap:12px;flex-wrap:wrap">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:12px">Este atleta aún no tiene cuenta Google conectada.</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">Pide al atleta que entre en esta web y pulse <em>Iniciar sesión con Google</em>. Cuando vea su UID en pantalla, pégalo aquí para que su plan aparezca en su dispositivo.</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="showLinkGoogleModal(${aid})"><i class="fas fa-link"></i> Vincular cuenta Google</button>
+          </div>
+        `}
       </div>
 
       <!-- Sessions table -->
@@ -8587,6 +8629,71 @@ function addAthlete(){
   toast(`Atleta ${name} creado con macrociclo adaptado${adaptMsg}`);
   navigate(S.view);
   renderSidebar();
+}
+
+// ===== FASE 6 — Vincular cuenta Google del atleta =====
+// Modal para que el coach pegue el UID Firebase del atleta y conecte su cuenta.
+function showLinkGoogleModal(aid){
+  const a = getAthleteById(aid);
+  if(!a) return;
+  showModal(`
+    <div class="modal-hdr"><div class="modal-title"><i class="fas fa-link" style="color:var(--primary);margin-right:8px"></i>Vincular cuenta Google — ${a.name}</div><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button></div>
+    <div style="background:rgba(91,79,138,.06);border:1px solid rgba(91,79,138,.2);border-radius:4px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--primary);letter-spacing:.8px;font-weight:600;margin-bottom:6px"><i class="fas fa-info-circle" style="margin-right:4px"></i>CÓMO OBTENER EL UID</div>
+      <ol style="font-size:11px;line-height:1.6;margin:0;padding-left:18px;color:var(--text)">
+        <li>Pide al atleta que abra esta web en su dispositivo.</li>
+        <li>Que pulse <strong>Iniciar sesión con Google</strong>.</li>
+        <li>Verá un aviso con su UID y un botón <strong>Copiar</strong>.</li>
+        <li>El atleta te lo envía (WhatsApp/email) y lo pegas abajo.</li>
+      </ol>
+    </div>
+    <div class="form-group">
+      <label>UID de Firebase del atleta</label>
+      <input type="text" id="linkGoogleUidInput" placeholder="p. ej. AbCd1234eFgH5678...ZxYw" style="font-family:var(--mono);font-size:11px">
+      <div style="font-size:10px;color:var(--muted);margin-top:4px">Pega aquí la cadena que te pase el atleta (~28 caracteres alfanuméricos).</div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="linkAthleteGoogleUid(${aid})"><i class="fas fa-link"></i> Vincular cuenta</button>
+  `, 560);
+  setTimeout(()=>{ const el=document.getElementById('linkGoogleUidInput'); if(el) el.focus(); }, 50);
+}
+
+// Aplica el UID al atleta local y lo sube a la nube inmediatamente.
+function linkAthleteGoogleUid(aid){
+  const el = document.getElementById('linkGoogleUidInput');
+  const uid = (el?.value||'').trim();
+  if(!uid){ toast('Pega el UID del atleta','error'); return; }
+  if(!/^[A-Za-z0-9_-]{10,}$/.test(uid)){ toast('UID inválido — debería ser una cadena alfanumérica','error'); return; }
+  const ath = getAthleteById(aid);
+  if(!ath) return;
+  const dup = (DB.athletes||[]).find(x=>x.googleUid===uid && x.id!==aid);
+  if(dup){ toast('Este UID ya está vinculado a '+dup.name,'error'); return; }
+  ath.googleUid = uid;
+  save(); // dispara _scheduleCloudSync que escribe athleteLinks + athletePlans
+  toast('Cuenta vinculada. El atleta ya puede acceder a su plan desde su dispositivo.','ok');
+  closeModal();
+  navigate('coach-athlete-detail',{id:aid});
+}
+
+// Rompe la vinculación — borra los documentos de Firestore y quita el googleUid local.
+async function unlinkAthleteGoogleUid(aid){
+  const ath = getAthleteById(aid);
+  if(!ath?.googleUid) return;
+  if(!confirm('¿Desvincular la cuenta Google de '+ath.name+'?\nEl atleta perderá acceso a su plan desde su dispositivo.')) return;
+  const oldUid = ath.googleUid;
+  delete ath.googleUid;
+  save();
+  // Limpieza cloud (best-effort — las reglas permiten que el coach propietario borre).
+  if(window.FB?.ready && window._fbUid){
+    try{
+      const FB = window.FB;
+      await Promise.all([
+        FB.deleteDoc(FB.doc(FB.db, 'athleteLinks', oldUid)).catch(()=>{}),
+        FB.deleteDoc(FB.doc(FB.db, 'athletePlans', oldUid)).catch(()=>{})
+      ]);
+    }catch(e){ console.warn('[unlink cloud cleanup]', e); }
+  }
+  toast('Cuenta Google desvinculada','ok');
+  navigate('coach-athlete-detail',{id:aid});
 }
 
 // ===== MACROCICLO ADAPTATIVO — aplica teoría del entrenamiento al perfil deportivo =====
