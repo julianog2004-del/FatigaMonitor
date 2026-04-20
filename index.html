@@ -790,10 +790,13 @@ function seed(){
         const date = daysAgo(dayOff);
         const v = n => Math.max(1,Math.min(5, Math.round(n + (Math.random()-.5)*1)));
         const sc = +(wellBase + (Math.random()-.5)*.4).toFixed(1);
+        const domsVal = v(wellBase+.1);
         DB.wellness.push({
           id:uid(), athleteId:p.aid, date,
           fatigue:v(wellBase), mood:v(wellBase), sleep:v(wellBase+.2),
-          stress:v(wellBase-.1), motivation:v(wellBase+.1),
+          stress:v(wellBase-.1),
+          doms: domsVal,
+          motivation: domsVal, // alias legacy — evita '-' en vistas antiguas
           score: Math.max(1,Math.min(5,+sc))
         });
       }
@@ -3519,37 +3522,182 @@ function setupProgresoChart(params){
 }
 
 // ===== COACH: SESSIONS =====
+// Cuestionario de wellness del apartado 'Log Sesiones'. Recoge 5 dimensiones
+// subjetivas (0-5 cada una) para alimentar la gráfica de wellness. Sustituye
+// la antigua tabla de registro de sesiones, que ya no vive aquí — la entrada
+// de DB.sessions se hace desde el modal 'Nueva Sesión' en el dashboard o
+// desde el flujo del atleta.
+const WELLNESS_QUESTIONS = [
+  {key:'fatigue', char:'Fatiga',                q:'¿Cómo de cansado te sientes hoy?',                                                       low:'Agotado',               high:'Muy fresco'},
+  {key:'sleep',   char:'Calidad de Sueño',      q:'¿Cómo has dormido esta noche?',                                                          low:'Insomnio',              high:'Sueño reparador'},
+  {key:'doms',    char:'Dolor Muscular (DOMS)', q:'¿Dolor o molestias musculares?',                                                         low:'Muy doloridos',         high:'Sin dolor'},
+  {key:'stress',  char:'Nivel de Estrés',       q:'¿Cómo es tu nivel de estrés general?',                                                   low:'Muy estresado',         high:'Muy relajado'},
+  {key:'mood',    char:'Estado de Ánimo',       q:'¿Cómo te has sentido a lo largo del día en términos de energía y bienestar general?',    low:'Muy irritable/deprimido', high:'Muy positivo'}
+];
+// Estado volátil del formulario — se resetea al navegar o al guardar.
+let wellAnswers = {};
 function viewSessions(){
   const athletes = DB.athletes.filter(a=>a.coachId===S.user.id);
-  const allSessions = DB.sessions.filter(s=>athletes.some(a=>a.id===s.athleteId)).sort((a,b)=>b.date.localeCompare(a.date));
+  if(athletes.length===0){
+    return `
+      <div class="pg-header"><div><div class="pg-title">Log Sesiones — Cuestionario Wellness</div><div class="pg-sub">Registra la percepción subjetiva del atleta</div></div></div>
+      <div class="pg-body"><div class="card"><div class="empty"><i class="fas fa-user-plus"></i><p>Añade primero un atleta para poder registrar wellness</p></div></div></div>`;
+  }
+  const recent = DB.wellness
+    .filter(w=>athletes.some(a=>a.id===w.athleteId))
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .slice(0,30);
+  const selAth = +S.params.wellAthlete || athletes[0].id;
+  const selDate = S.params.wellDate || TODAY;
 
   return `
     <div class="pg-header">
-      <div><div class="pg-title">Registro de Sesiones</div><div class="pg-sub">${allSessions.length} sesiones registradas</div></div>
-      <button class="btn btn-primary" onclick="showSessionModal()"><i class="fas fa-plus"></i> Nueva Sesión</button>
+      <div><div class="pg-title">Log Sesiones — Cuestionario Wellness</div>
+        <div class="pg-sub">Registra diariamente la percepción subjetiva (fatiga, sueño, DOMS, estrés y ánimo). El total alimenta la gráfica de wellness.</div>
+      </div>
     </div>
     <div class="pg-body">
+      <div class="card mb-24">
+        <div class="card-title"><i class="fas fa-clipboard-check" style="margin-right:6px"></i>Nuevo registro</div>
+
+        <div class="grid-2 mb-24">
+          <div>
+            <label style="display:block;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px">Atleta</label>
+            <select id="well-ath" class="inline-edit" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:3px;background:var(--card);font-family:var(--sans);font-size:13px" onchange="navigate('coach-sessions',{...S.params, wellAthlete:+this.value})">
+              ${athletes.map(a=>`<option value="${a.id}" ${a.id===selAth?'selected':''}>${a.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px">Fecha</label>
+            <input id="well-date" class="inline-edit" type="date" value="${selDate}" max="${TODAY}" onchange="navigate('coach-sessions',{...S.params, wellDate:this.value})" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:3px;background:var(--card);font-family:var(--mono);font-size:13px">
+          </div>
+        </div>
+
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin:0 0 14px;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px">
+          <i class="fas fa-question-circle"></i>5 preguntas · Escala 0 a 5 · Media automática
+        </div>
+
+        ${WELLNESS_QUESTIONS.map(q=>`
+          <div class="well-q" data-key="${q.key}" style="padding:14px;border:1px solid var(--border);border-radius:3px;margin-bottom:10px;background:var(--card)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:12px;flex-wrap:wrap">
+              <div style="flex:1 1 280px">
+                <div style="font-family:var(--mono);font-size:10px;color:var(--primary);letter-spacing:.8px;text-transform:uppercase;font-weight:600">${q.char}</div>
+                <div style="font-size:14px;color:var(--text);margin-top:3px;line-height:1.35">${q.q}</div>
+              </div>
+              <div class="well-val" data-val="${q.key}" style="font-family:'DM Sans',var(--sans);font-size:28px;font-weight:700;color:var(--accent);min-width:48px;text-align:right">—</div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+              ${[0,1,2,3,4,5].map(n=>`
+                <button type="button" class="well-btn" data-q="${q.key}" data-n="${n}" onclick="setWellAnswer('${q.key}',${n})" style="flex:1 1 40px;min-width:40px;padding:10px 0;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:3px;font-family:var(--mono);font-weight:600;font-size:14px;cursor:pointer;transition:all .18s">${n}</button>
+              `).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:7px;font-style:italic">
+              <span><strong>0</strong> · ${q.low}</span>
+              <span>${q.high} · <strong>5</strong></span>
+            </div>
+          </div>
+        `).join('')}
+
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border:2px solid var(--primary);border-radius:3px;margin:14px 0;background:rgba(139,115,64,.05)">
+          <div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--primary);letter-spacing:.8px;text-transform:uppercase;font-weight:600">Total (media 0-5)</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">Se calcula cuando respondas las 5 preguntas</div>
+          </div>
+          <div id="well-total" style="font-family:'DM Sans',var(--sans);font-size:36px;font-weight:700;color:var(--primary)">—</div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="clearWellForm()"><i class="fas fa-eraser"></i> Limpiar</button>
+          <button class="btn btn-primary" onclick="saveWellEntry()"><i class="fas fa-save"></i> Guardar registro</button>
+        </div>
+      </div>
+
       <div class="card">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Fecha</th><th>Atleta</th><th>Tipo</th><th>Microciclo</th><th>Vol.</th><th>Int.</th><th>Carga</th><th>RPE</th><th></th></tr></thead>
+        <div class="card-title"><i class="fas fa-history" style="margin-right:6px"></i>Últimos registros</div>
+        ${recent.length ? `<div class="tbl-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Atleta</th><th>Fatiga</th><th>Sueño</th><th>DOMS</th><th>Estrés</th><th>Ánimo</th><th>Total</th><th></th></tr></thead>
           <tbody>
-          ${allSessions.slice(0,30).map(s=>{
-            const a = getAthleteById(s.athleteId);
+          ${recent.slice(0,20).map(w=>{
+            const a = getAthleteById(w.athleteId);
+            const domsShown = (w.doms!==undefined)?w.doms:(w.motivation!==undefined?w.motivation:'-');
             return `<tr>
-              <td>${fmtShort(s.date)}</td>
-              <td><div class="flex items-center gap-8">${a?athAvatar(a,24,3,false):'<div class="avatar" style="width:24px;height:24px;font-size:9px">?</div>'}${a?a.name:'-'}</div></td>
-              <td><span class="badge badge-pri">${getSessionTypeName(s.type)}</span></td>
-              <td><span class="micro-tag ${s.microType}">${getMicroTypeName(s.microType)}</span></td>
-              <td>${s.volume}</td><td>${s.intensity}%</td>
-              <td style="font-weight:600">${s.extLoad.toFixed(1)}</td>
-              <td><span style="font-weight:600;color:${s.rpe<=5?'var(--ok)':s.rpe<=7?'var(--warn)':'var(--danger)'}">${s.rpe}/10</span></td>
-              <td><button class="btn btn-ghost btn-sm" onclick="deleteSession('${s.id}')" title="Eliminar"><i class="fas fa-trash" style="color:var(--danger);font-size:11px"></i></button></td>
+              <td>${fmtShort(w.date)}</td>
+              <td>${a?a.name:'-'}</td>
+              <td style="text-align:center">${w.fatigue??'-'}</td>
+              <td style="text-align:center">${w.sleep??'-'}</td>
+              <td style="text-align:center">${domsShown}</td>
+              <td style="text-align:center">${w.stress??'-'}</td>
+              <td style="text-align:center">${w.mood??'-'}</td>
+              <td style="text-align:center;font-weight:600;color:var(--primary)">${w.score}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="deleteWellness('${w.id}')" title="Eliminar"><i class="fas fa-trash" style="color:var(--danger);font-size:11px"></i></button></td>
             </tr>`;
           }).join('')}
           </tbody>
-        </table></div>
+        </table></div>` : '<div class="empty"><i class="fas fa-clipboard"></i><p>Aún no hay registros de wellness</p></div>'}
       </div>
     </div>`;
+}
+
+function setWellAnswer(key, n){
+  wellAnswers[key] = n;
+  const valEl = document.querySelector(`.well-val[data-val="${key}"]`);
+  if(valEl) valEl.textContent = n;
+  document.querySelectorAll(`.well-btn[data-q="${key}"]`).forEach(b=>{
+    const active = +b.dataset.n === n;
+    b.style.background = active ? 'var(--primary)' : 'transparent';
+    b.style.color = active ? '#fff' : 'var(--text)';
+    b.style.borderColor = active ? 'var(--primary)' : 'var(--border)';
+    b.style.fontWeight = active ? '700' : '600';
+  });
+  const keys = WELLNESS_QUESTIONS.map(q=>q.key);
+  const filled = keys.filter(k=>wellAnswers[k]!==undefined);
+  const totalEl = document.getElementById('well-total');
+  if(totalEl){
+    if(filled.length===5){
+      const avg = +(keys.reduce((s,k)=>s+wellAnswers[k],0)/5).toFixed(1);
+      totalEl.textContent = avg;
+    }else{
+      totalEl.textContent = `${filled.length}/5`;
+    }
+  }
+}
+function clearWellForm(){
+  wellAnswers = {};
+  toast('Formulario limpiado');
+  navigate('coach-sessions', S.params);
+}
+function saveWellEntry(){
+  const athId = +document.getElementById('well-ath').value;
+  const date  = document.getElementById('well-date').value;
+  const keys  = WELLNESS_QUESTIONS.map(q=>q.key);
+  if(!athId || !date){ toast('Selecciona atleta y fecha','warn'); return; }
+  const missing = keys.filter(k=>wellAnswers[k]===undefined);
+  if(missing.length){ toast(`Faltan ${missing.length} pregunta(s) por responder`,'warn'); return; }
+  const score = +(keys.reduce((s,k)=>s+wellAnswers[k],0)/5).toFixed(2);
+  const existing = DB.wellness.find(w=>w.athleteId===athId && w.date===date);
+  if(existing){
+    if(!confirm('Ya hay un registro para este atleta en esta fecha. ¿Sobrescribirlo?')) return;
+    keys.forEach(k=>existing[k]=wellAnswers[k]);
+    existing.score = score;
+    // Alias de retrocompatibilidad: motivation sigue el valor de doms para que
+    // las vistas antiguas no muestren '-' donde ya hay dato nuevo.
+    existing.motivation = wellAnswers.doms;
+  }else{
+    DB.wellness.push({
+      id: uid(), athleteId: athId, date,
+      fatigue: wellAnswers.fatigue,
+      sleep:   wellAnswers.sleep,
+      doms:    wellAnswers.doms,
+      motivation: wellAnswers.doms, // alias legacy
+      stress:  wellAnswers.stress,
+      mood:    wellAnswers.mood,
+      score
+    });
+  }
+  save();
+  wellAnswers = {};
+  toast(`Wellness guardado — total ${score}/5`);
+  navigate('coach-sessions', {...S.params, wellAthlete:athId, wellDate:date});
 }
 
 // ===== COACH: REPORTS =====
@@ -6840,7 +6988,7 @@ function setupProgressCharts(){
         {label:'Ánimo',data:wellAll.map(w=>w.mood),borderColor:'#5B4F8A',tension:.3,pointRadius:0},
         {label:'Sueño',data:wellAll.map(w=>w.sleep),borderColor:'#7B6EAA',tension:.3,pointRadius:0},
         {label:'Estrés',data:wellAll.map(w=>w.stress),borderColor:'#9E8035',tension:.3,pointRadius:0},
-        {label:'Motivación',data:wellAll.map(w=>w.motivation),borderColor:'#4A7A5A',tension:.3,pointRadius:0}
+        {label:'DOMS',data:wellAll.map(w=>w.doms??w.motivation),borderColor:'#4A7A5A',tension:.3,pointRadius:0}
       ]
     },
     options:{scales:{y:{min:1,max:5}}}
@@ -9381,7 +9529,7 @@ function generateFullReport(aid){
       {label:'Ánimo',data:wellData.map(w=>w.mood),borderColor:'#5B4F8A',tension:.3,pointRadius:0,borderWidth:2},
       {label:'Sueño',data:wellData.map(w=>w.sleep),borderColor:'#7B6EAA',tension:.3,pointRadius:0,borderWidth:2},
       {label:'Estrés',data:wellData.map(w=>w.stress),borderColor:'#9E8035',tension:.3,pointRadius:0,borderWidth:2},
-      {label:'Motivación',data:wellData.map(w=>w.motivation),borderColor:'#4A7A5A',tension:.3,pointRadius:0,borderWidth:2}
+      {label:'DOMS',data:wellData.map(w=>w.doms??w.motivation),borderColor:'#4A7A5A',tension:.3,pointRadius:0,borderWidth:2}
     ]},
     options:{scales:{y:{min:1,max:5}}}
   }) : null;
@@ -9752,7 +9900,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v24 · Enlace a foto/vídeo por ejercicio · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v25 · Cuestionario Wellness en Log Sesiones + DOMS · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
