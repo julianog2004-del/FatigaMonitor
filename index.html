@@ -327,6 +327,13 @@
     .ses-mirror table input:focus{border-color:var(--accent);background:rgba(91,79,138,.04)}
     .ses-mirror .ex-name{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 8px;font-style:italic}
     .ses-mirror .dev-cell{text-align:center;font-family:var(--mono);font-size:10px;padding:4px 2px;width:38px}
+    /* Enlace a foto/vídeo del ejercicio (debajo de cada fila) */
+    .ex-media-row{margin-top:4px;display:flex;gap:6px;align-items:center;font-size:10px;flex-wrap:wrap}
+    .ex-media-btn{padding:2px 7px;border-radius:2px;border:1px dashed var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:9.5px;font-weight:400;transition:all .18s;display:inline-flex;align-items:center;gap:3px;letter-spacing:.3px}
+    .ex-media-btn:hover{border-style:solid;border-color:var(--accent);color:var(--accent);background:rgba(91,79,138,.05)}
+    .ex-media-btn-danger:hover{border-color:var(--danger);color:var(--danger);background:rgba(160,64,64,.05)}
+    .ex-media-link{color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:10px;border-bottom:1px dotted var(--accent);padding-bottom:1px;transition:all .18s;display:inline-flex;align-items:center}
+    .ex-media-link:hover{color:var(--accent-alt);border-bottom-style:solid}
     .ses-mirror .dev-up{color:var(--ok)}
     .ses-mirror .dev-down{color:var(--danger)}
     .ses-mirror .dev-eq{color:var(--muted)}
@@ -2791,9 +2798,21 @@ function viewSesionesDetail(){
     }
 
     // --- STANDARD STRENGTH SESSION TEMPLATE ---
+    // Helper: escapa comillas para usar dentro de un atributo title/href en template literal.
+    const escAttr = s => (s||'').toString().replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const exRows = ses.exercises.map((ex,ei)=>`
       <tr>
-        <td><input value="${ex.name}" placeholder="Ejercicio ${ei+1}" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'name',this.value)"></td>
+        <td>
+          <input value="${ex.name||''}" placeholder="Ejercicio ${ei+1}" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'name',this.value)">
+          <div class="ex-media-row">
+            ${ex.mediaUrl
+              ? `<a href="${escAttr(ex.mediaUrl)}" target="_blank" rel="noopener" class="ex-media-link" title="${escAttr(ex.mediaUrl)}"><i class="fas fa-play-circle" style="margin-right:3px"></i>Ver referencia</a>
+                 <button class="ex-media-btn" onclick="editExMedia(${selAth},'${key}',${si},${ei})" title="Editar enlace"><i class="fas fa-pen"></i></button>
+                 <button class="ex-media-btn ex-media-btn-danger" onclick="removeExMedia(${selAth},'${key}',${si},${ei})" title="Quitar enlace"><i class="fas fa-times"></i></button>`
+              : `<button class="ex-media-btn" onclick="editExMedia(${selAth},'${key}',${si},${ei})" title="Añadir enlace a una foto o vídeo del ejercicio"><i class="fas fa-link" style="margin-right:3px"></i>Añadir foto/vídeo</button>`
+            }
+          </div>
+        </td>
         <td><input value="${ex.kg||''}" placeholder="kg" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'kg',this.value)" style="width:55px;text-align:center"></td>
         <td><input value="${ex.s1}" placeholder="—" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'s1',this.value)"></td>
         <td><input value="${ex.s2}" placeholder="—" onchange="saveSesEx(${selAth},'${key}',${si},${ei},'s2',this.value)"></td>
@@ -2836,7 +2855,10 @@ function viewSesionesDetail(){
       const devLbl = adh==null ? '' : (adh-100>0?'▲':adh-100<0?'▼':'=')+Math.abs(adh-100)+'%';
       const devCls = adh==null ? 'dev-cell' : 'dev-cell '+(adh-100>0?'dev-up':adh-100<0?'dev-down':'dev-eq');
       return `<tr>
-        <td class="ex-name">${ex.name||'—'}</td>
+        <td class="ex-name">
+          ${ex.name||'—'}
+          ${ex.mediaUrl ? `<div style="margin-top:3px"><a href="${escAttr(ex.mediaUrl)}" target="_blank" rel="noopener" class="ex-media-link" title="${escAttr(ex.mediaUrl)}" style="font-size:10px"><i class="fas fa-play-circle" style="margin-right:3px"></i>Ver referencia</a></div>` : ''}
+        </td>
         <td><input value="${mirror(r.kg, ex.kg)}" placeholder="kg" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'kg',this.value)" style="width:55px;text-align:center"></td>
         <td><input value="${mirror(r.s1, ex.s1)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s1',this.value)"></td>
         <td><input value="${mirror(r.s2, ex.s2)}" placeholder="—" onchange="saveSesRealEx(${selAth},'${key}',${si},${ei},'s2',this.value)"></td>
@@ -3076,6 +3098,40 @@ function saveSesEx(athId, key, sesIdx, exIdx, field, value){
       if(volInput) volInput.value = vol || '';
     }
   }
+}
+// Pide al entrenador el enlace a foto o vídeo del ejercicio y lo guarda en ex.mediaUrl.
+// Admite YouTube, Vimeo, Drive, Instagram, Dropbox, URL de imagen directa... lo que
+// pegue funciona siempre que sea http(s). Vacío o Cancelar no borra nada; para quitar
+// el enlace existe el botón 'Quitar enlace'.
+function editExMedia(athId, key, sesIdx, exIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const ses = plan.detailedSessions[key][sesIdx];
+  if(!ses || !Array.isArray(ses.exercises) || !ses.exercises[exIdx]) return;
+  const ex = ses.exercises[exIdx];
+  const current = ex.mediaUrl || '';
+  const label = ex.name ? `"${ex.name}"` : `Ejercicio ${exIdx+1}`;
+  const url = prompt(`Enlace a la foto o vídeo de ${label}:\n\nPega una URL (YouTube, Vimeo, Drive, imagen, etc.).\nDeja vacío y pulsa Aceptar para quitar el enlace.`, current);
+  if(url === null) return; // canceled
+  const trimmed = url.trim();
+  if(trimmed && !/^https?:\/\//i.test(trimmed)){
+    if(!confirm('El enlace no empieza por http:// o https://. ¿Guardarlo igualmente?')) return;
+  }
+  ex.mediaUrl = trimmed;
+  save();
+  toast(trimmed ? 'Enlace guardado' : 'Enlace quitado');
+  navigate(S.view, S.params);
+}
+function removeExMedia(athId, key, sesIdx, exIdx){
+  const plan = DB.plans.find(p=>p.athleteId===athId);
+  if(!plan || !plan.detailedSessions || !plan.detailedSessions[key]) return;
+  const ses = plan.detailedSessions[key][sesIdx];
+  if(!ses || !Array.isArray(ses.exercises) || !ses.exercises[exIdx]) return;
+  if(!confirm('¿Quitar el enlace a la foto/vídeo de este ejercicio?')) return;
+  delete ses.exercises[exIdx].mediaUrl;
+  save();
+  toast('Enlace quitado');
+  navigate(S.view, S.params);
 }
 function saveSesField(athId, key, sesIdx, field, value){
   const plan = DB.plans.find(p=>p.athleteId===athId);
@@ -9696,7 +9752,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v23 · Copy/paste del plan + error-boundary · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v24 · Enlace a foto/vídeo por ejercicio · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
