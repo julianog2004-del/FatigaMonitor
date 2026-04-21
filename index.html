@@ -1568,7 +1568,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v27</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v28</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -9683,7 +9683,7 @@ function generateFullReport(aid){
       {label:'Wellness',data:wellData.map(w=>w.score),borderColor:'#4A7A5A',backgroundColor:'rgba(74,122,90,.12)',fill:true,tension:.3,pointRadius:2,borderWidth:2},
       {label:'Umbral',data:wellData.map(()=>3.5),borderColor:'rgba(158,128,53,.5)',borderDash:[5,5],pointRadius:0,borderWidth:1}
     ]},
-    options:{scales:{y:{min:1,max:5}}}
+    options:{scales:{y:{min:0,max:5,ticks:{stepSize:1}}}}
   }) : null;
 
   // 3. Wellness Components
@@ -9696,22 +9696,80 @@ function generateFullReport(aid){
       {label:'Estrés',data:wellData.map(w=>w.stress),borderColor:'#9E8035',tension:.3,pointRadius:0,borderWidth:2},
       {label:'DOMS',data:wellData.map(w=>w.doms??w.motivation),borderColor:'#4A7A5A',tension:.3,pointRadius:0,borderWidth:2}
     ]},
-    options:{scales:{y:{min:1,max:5}}}
+    options:{scales:{y:{min:0,max:5,ticks:{stepSize:1}}}}
   }) : null;
 
-  // 4. Weekly Load (8 weeks)
-  const wkLabels=[], wkLoads=[];
-  for(let w=7;w>=0;w--){
-    wkLabels.push(''+(8-w));
-    const from=daysAgo((w+1)*7), to=daysAgo(w*7);
-    wkLoads.push(+DB.sessions.filter(s=>s.athleteId===aid&&s.date>from&&s.date<=to).reduce((sum,s)=>sum+s.extLoad,0).toFixed(1));
+  // 4. Carga Externa — últimos 31 días (Programada vs Volumen Real vs RIR Real)
+  let imgLoad = null;
+  const planRpt = DB.plans.find(p=>p.athleteId===aid);
+  if(planRpt && planRpt.startDate && Array.isArray(planRpt.mesociclos) && planRpt.mesociclos.length){
+    const startMs = toDate(planRpt.startDate).getTime();
+    const todayMs = toDate(TODAY).getTime();
+    const DAY_MS = 86400000;
+    // Flat list de keys "meso-week" en orden cronológico
+    const weekKeys = [];
+    planRpt.mesociclos.forEach((m,mi)=>{
+      const mcs = m.microcycles||[];
+      for(let wi=0; wi<mcs.length; wi++) weekKeys.push(`${mi+1}-${wi+1}`);
+    });
+    const labels=[], planned=[], realVol=[], realRir=[];
+    for(let d=30; d>=0; d--){
+      const dayMs = todayMs - d*DAY_MS;
+      const dayDate = new Date(dayMs);
+      labels.push(dayDate.toLocaleDateString('es-ES',{day:'2-digit',month:'short'}));
+      const daysSinceStart = Math.round((dayMs - startMs)/DAY_MS);
+      if(daysSinceStart<0){ planned.push(null); realVol.push(null); realRir.push(null); continue; }
+      const wi = Math.floor(daysSinceStart/7), si = daysSinceStart%7;
+      const key = weekKeys[wi];
+      const ses = key && planRpt.detailedSessions && planRpt.detailedSessions[key] && planRpt.detailedSessions[key][si];
+      if(!ses || !Array.isArray(ses.exercises) || !ses.exercises.length){ planned.push(null); realVol.push(null); realRir.push(null); continue; }
+      // Programado
+      let pv=0;
+      ses.exercises.forEach(ex=>{
+        const rowKg = parseFloat(ex.kg)||0;
+        ['s1','s2','s3','s4'].forEach(k=>{
+          const {reps,load} = parseRepsLoad(ex[k], rowKg);
+          pv += reps*load;
+        });
+      });
+      // Real
+      let rv=0, rirSum=0, rirCnt=0, hasReal=false;
+      ses.exercises.forEach(ex=>{
+        if(!ex.real) return;
+        hasReal=true;
+        const rowKg = parseFloat(ex.real.kg)||0;
+        ['s1','s2','s3','s4'].forEach(k=>{
+          const {reps,load} = parseRepsLoad(ex.real[k], rowKg);
+          rv += reps*load;
+        });
+        const rirN = parseFloat(ex.real.rir);
+        if(!isNaN(rirN)){ rirSum += rirN; rirCnt++; }
+      });
+      planned.push(pv>0 ? Math.round(pv) : null);
+      realVol.push(hasReal && rv>0 ? Math.round(rv) : null);
+      realRir.push(rirCnt ? +(rirSum/rirCnt).toFixed(1) : null);
+    }
+    const hasAny = planned.some(v=>v!==null) || realVol.some(v=>v!==null) || realRir.some(v=>v!==null);
+    if(hasAny){
+      imgLoad = makeOffChart(680,240,{
+        type:'line',
+        data:{labels,datasets:[
+          {label:'Carga Programada (vol)',data:planned,borderColor:'#8B7340',backgroundColor:'rgba(139,115,64,.12)',fill:true,tension:.3,pointRadius:2,borderWidth:2,yAxisID:'y',spanGaps:true},
+          {label:'Volumen Real',data:realVol,borderColor:'#5B4F8A',backgroundColor:'rgba(91,79,138,0)',tension:.3,pointRadius:3,borderWidth:2,borderDash:[5,3],yAxisID:'y',spanGaps:true},
+          {label:'Intensidad (RIR)',data:realRir,borderColor:'#A04040',backgroundColor:'rgba(160,64,64,0)',tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1',spanGaps:true}
+        ]},
+        options:{
+          interaction:{mode:'index',intersect:false},
+          scales:{
+            x:{title:{display:true,text:'Últimos 31 días',color:'#555',font:{size:10,family:'Inter'}},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:10,color:'#777',font:{size:9}}},
+            y:{position:'left',title:{display:true,text:'Volumen (kg·reps)',color:'#8B7340',font:{size:10,family:'Inter'}},ticks:{color:'#777'}},
+            y1:{position:'right',min:0,max:5,title:{display:true,text:'RIR',color:'#A04040',font:{size:10,family:'Inter'}},ticks:{stepSize:1,color:'#A04040'},grid:{drawOnChartArea:false}}
+          },
+          plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'},boxWidth:14,padding:8}}}
+        }
+      });
+    }
   }
-  const hasLoadData = wkLoads.some(v=>v>0);
-  const imgLoad = hasLoadData ? makeOffChart(680,200,{
-    type:'bar',
-    data:{labels:wkLabels,datasets:[{label:'Carga Semanal',data:wkLoads,backgroundColor:'rgba(91,79,138,.6)',borderRadius:4}]},
-    options:{scales:{x:{title:{display:true,text:'Semanas',color:'#555',font:{size:10,family:'Inter'}}}},plugins:{legend:{display:false}}}
-  }) : null;
 
   // 5. Ratio A/C over weeks
   const ratioArr=[];
@@ -10042,7 +10100,7 @@ ${imgWell?'<div class="section"><div class="section-title">Wellness Score</div><
 
 ${imgWellComp?'<div class="section"><div class="section-title">Componentes del Wellness</div><img class="chart-img" src="'+imgWellComp+'"></div>':''}
 
-${imgLoad?'<div class="section"><div class="section-title">Carga Externa Semanal</div><img class="chart-img" src="'+imgLoad+'"></div>':''}
+${imgLoad?'<div class="section"><div class="section-title">Carga Externa — últimos 31 días (Programada vs Real + Intensidad RIR)</div><img class="chart-img" src="'+imgLoad+'"></div>':''}
 
 ${imgRatio?'<div class="section"><div class="section-title">Ratio Aguda/Crónica — Evolución</div><img class="chart-img" src="'+imgRatio+'"></div>':''}
 
@@ -10070,7 +10128,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v27 · Claude Design · Sombras + efectos + gradientes · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v28 · Informe: wellness 0-5 + carga 31 días (programada vs real + RIR) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
