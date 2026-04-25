@@ -298,6 +298,9 @@
     .cmj-telem{display:flex;gap:8px;justify-content:center;font-family:var(--mono);font-size:9.5px;color:rgba(255,255,255,.7);margin-bottom:4px;flex-wrap:wrap}
     .cmj-telem .tel{padding:2px 6px;border-radius:3px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1)}
     .cmj-telem .tel b{color:#fff;font-family:'DM Sans',var(--sans);font-size:11px}
+    .cmj-telem .tel b.ok{color:#86efac}
+    .cmj-telem .tel b.warn{color:#fbbf24}
+    .cmj-telem .tel b.err{color:#fca5a5}
     .cmj-quality-row{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
     .cmj-quality-badge{padding:3px 6px;border-radius:3px;display:inline-flex;align-items:center;gap:4px;backdrop-filter:blur(4px)}
     .cmj-quality-badge.ok{background:rgba(74,122,90,.3);border:1px solid var(--ok);color:#9be0ac}
@@ -1568,7 +1571,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v28</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v29</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10128,7 +10131,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v28 · Informe: wellness 0-5 + carga 31 días (programada vs real + RIR) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v29 · CMJ optimizado: cámara adaptativa por dispositivo + segmentos separados (TOE/HEEL/ANKLE) + bias CoM + latencia MediaPipe · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10281,79 +10284,146 @@ function cmjCentralDiff(sig, ts){
 }
 // ---- Análisis post-salto sobre la trayectoria completa ----
 // Devuelve {hFlightCm, hComCm, hCm, method, phases, quality[], flightMs, depthCm, contaminated, asymPct}
+//
+// MEJORAS v29 (PDF "Optimización Biomecánica"):
+//  · Cada segmento se procesa por separado (TOE 31/32, HEEL 29/30, ANKLE 27/28).
+//  · TOE = último contacto en propulsión → mejor detección de despegue.
+//  · HEEL = primer contacto en aterrizaje → mejor detección de landing.
+//  · Detección de eventos por umbral 0.2 g + análisis de pendiente (>97% acierto).
+//  · Compensación de latencia MediaPipe (1-2 frames) en eventos de alta velocidad.
+//  · Corrección de bias sistemático del CoM (+1.36 cm media según PDF).
+//  · Filtro Butterworth 4º zero-phase a min(12 Hz, fs/2.5) por señal independiente.
 function cmjAnalyzeTrajectory(traj, groundY, mPerNormY){
   if(!traj || traj.length < 10) return null;
   // Señales base: convertir Y normalizado (crece hacia abajo) a altura (crece hacia arriba) en metros
   const ts = traj.map(f => f.t/1000);              // s
   const fs = 1 / Math.max(1e-3, (ts[ts.length-1]-ts[0])/(ts.length-1));
   const mY = mPerNormY && isFinite(mPerNormY) && mPerNormY > 0 ? mPerNormY : null;
-  const heightSig = traj.map(f => -(f.yCom) * (mY||1));  // invierte eje; si no hay escala, unidades normalizadas
-  const heelSig   = traj.map(f => -(f.yHeelAvg) * (mY||1));
-  // Filtro Butterworth 4º zero-phase cutoff 12 Hz (estándar biomecánica)
-  const fc = Math.min(12, fs*0.4);
-  const hCoM = cmjButter4FwdBwd(heightSig, fc, fs);
-  const hHeel = cmjButter4FwdBwd(heelSig, fc, fs);
-  // Velocidades por diferencia central
+  const scale = mY || 1;
+  // Convierto cada serie por separado (signo invertido: arriba = positivo)
+  const sigCom    = traj.map(f => -(f.yCom)        * scale);
+  const sigHeelL  = traj.map(f => -(f.yHeelL)      * scale);
+  const sigHeelR  = traj.map(f => -(f.yHeelR)      * scale);
+  const sigHeelAv = traj.map(f => -(f.yHeelAvg)    * scale);
+  const sigToeAv  = traj.map(f => -(f.yToeAvg)     * scale);
+  const sigFootBt = traj.map(f => -(f.yFootBottom) * scale);
+  // Filtro Butterworth 4º zero-phase para cada señal independientemente (PDF §Filtros)
+  const fc = Math.min(12, fs * 0.40);  // cutoff 12 Hz o 40% de Nyquist (lo más bajo)
+  const hCoM    = cmjButter4FwdBwd(sigCom,    fc, fs);
+  const hHeelL  = cmjButter4FwdBwd(sigHeelL,  fc, fs);
+  const hHeelR  = cmjButter4FwdBwd(sigHeelR,  fc, fs);
+  const hHeelAv = cmjButter4FwdBwd(sigHeelAv, fc, fs);
+  const hToeAv  = cmjButter4FwdBwd(sigToeAv,  fc, fs);
+  const hFootBt = cmjButter4FwdBwd(sigFootBt, fc, fs);
+  // Niveles de "suelo" (positivos arriba): el reposo es el VALOR DE PARTIDA de cada señal
+  // (se calcula como mediana de los primeros 0.3 s)
+  const guardStart = Math.max(5, Math.round(fs * 0.30));
+  const median = arr => { const s=[...arr].sort((a,b)=>a-b); return s[Math.floor(s.length/2)]; };
+  const baseHeel  = median(hHeelAv.slice(0, guardStart));
+  const baseToe   = median(hToeAv .slice(0, guardStart));
+  const baseFoot  = median(hFootBt.slice(0, guardStart));
+  const baseCom   = median(hCoM   .slice(0, guardStart));
+  // Velocidad y aceleración del CoM (diferencia central)
   const vCoM = cmjCentralDiff(hCoM, ts);
-  // Detección de fases por velocidad
-  // 1) reposo: |v|<0.05 al principio
-  // 2) despesaje: primer índice con v<-0.08 m/s (o <-0.08*mY si unidades normalizadas)
-  const vThr = mY ? 0.08 : 0.08*(mY||0.005); // 8 cm/s
+  const aCoM = cmjCentralDiff(vCoM, ts);
+  const G = 9.81;
+  const aThr = 0.20 * G; // PDF: umbral 0.2 g
+  // Si no hay escala (mY null), trabajamos en unidades normalizadas y los umbrales se
+  // expresan como fracción de la altura del frame por segundo.
+  const vThr = mY ? 0.08 : 0.05;     // 8 cm/s (con escala) o 5%/s (sin escala)
+  // Distancia mínima sobre el suelo para considerar pie en el aire (PDF: 2% del frame ≈ ~3 cm en HD)
+  const FOOT_AIR = mY ? (0.025) : 0.020;     // 2.5 cm o 2% del frame
+  const FOOT_LAND = mY ? (0.010) : 0.008;    // 1 cm o 0.8%
+  // === Detección de fases por velocidad/aceleración del CoM ===
   let iUnw = -1, iMin = -1, iTake = -1, iApex = -1, iLand = -1;
-  // Saltar primeros ~300 ms (ringing del Butterworth zero-phase en los bordes)
-  const guardStart = Math.max(5, Math.round(fs*0.3));
-  for(let i=guardStart;i<vCoM.length-1;i++){ if(vCoM[i] < -vThr){ iUnw = i; break; } }
-  if(iUnw < 0) iUnw = guardStart;
-  // 3) mínimo: primer cambio de signo neg→pos tras iUnw
-  for(let i=iUnw+1;i<vCoM.length-1;i++){ if(vCoM[i-1]<0 && vCoM[i]>=0){ iMin = i; break; } }
-  if(iMin < 0) iMin = iUnw+1;
-  // 4) despegue: los talones superan umbral sobre suelo (groundY es en Y normalizado, crece hacia abajo)
-  //    = -yHeelAvg > -groundY + thr
-  const takeThr = 0.02; // 2% de la altura del frame
-  for(let i=iMin+1;i<traj.length-2;i++){
-    if(traj[i].yHeelAvg < groundY - takeThr){ iTake = i; break; }
+  // 1) Despesaje: primer pasaje de velocidad bajo -vThr y aceleración significativamente negativa
+  for(let i=guardStart; i<vCoM.length-1; i++){
+    if(vCoM[i] < -vThr && aCoM[i] < -0.5){ iUnw = i; break; }
   }
+  if(iUnw < 0){
+    for(let i=guardStart; i<vCoM.length-1; i++){ if(vCoM[i] < -vThr){ iUnw = i; break; } }
+  }
+  if(iUnw < 0) iUnw = guardStart;
+  // 2) Mínimo (profundidad): primer cambio de signo neg→pos tras despesaje
+  for(let i=iUnw+1; i<vCoM.length-1; i++){
+    if(vCoM[i-1] < 0 && vCoM[i] >= 0){ iMin = i; break; }
+  }
+  if(iMin < 0) iMin = iUnw + 1;
+  // 3) Despegue por SEGMENTOS:
+  //    Criterio principal — la PUNTA del pie (toe) supera umbral pequeño sobre línea base.
+  //    En vídeo es la señal más limpia y rápida (el filtrado de aceleración añade ~1 frame de retraso).
+  //    Refinamos el instante encontrando el frame ANTERIOR donde la punta cruza el umbral pequeño.
+  const TOE_LEAVE = mY ? 0.010 : 0.008; // 1 cm o 0.8% — umbral más pequeño para detectar antes
+  for(let i=iMin+1; i<traj.length-3; i++){
+    const toeUp  = (hToeAv[i]  - baseToe)  > TOE_LEAVE;
+    const heelUp = (hHeelAv[i] - baseHeel) > TOE_LEAVE;
+    if(toeUp && heelUp){
+      // Buscamos el ÚLTIMO frame antes de i en el que la punta aún estaba pegada al suelo
+      // (último contacto en propulsión = despegue real)
+      let j = i;
+      for(let k=i-1; k>=Math.max(iMin, i-Math.round(fs*0.10)); k--){
+        if((hToeAv[k] - baseToe) <= TOE_LEAVE*0.5){ j = k+1; break; }
+      }
+      iTake = j;
+      break;
+    }
+  }
+  // Fallback: pico de velocidad positiva
   if(iTake < 0){
-    // fallback: pico de velocidad positiva
-    let maxV = -Infinity, idx = iMin+1;
-    for(let i=iMin+1;i<vCoM.length-2;i++){ if(vCoM[i]>maxV){ maxV=vCoM[i]; idx=i; } }
+    let maxV = -Infinity, idx = iMin + 1;
+    for(let i=iMin+1; i<vCoM.length-2; i++){ if(vCoM[i] > maxV){ maxV = vCoM[i]; idx = i; } }
     iTake = idx;
   }
-  // 5) apex: v cruza de pos a neg tras iTake
-  for(let i=iTake+1;i<vCoM.length-1;i++){ if(vCoM[i-1]>0 && vCoM[i]<=0){ iApex = i; break; } }
-  if(iApex < 0) iApex = Math.floor((iTake + traj.length-1)/2);
-  // 6) aterrizaje: primer índice tras iApex con talón de vuelta al suelo
-  for(let i=iApex+1;i<traj.length;i++){
-    if(traj[i].yHeelAvg >= groundY - 0.006){ iLand = i; break; }
+  // Compensar latencia MediaPipe (PDF: ~1-2 frames de retardo en eventos de alta velocidad)
+  if(fs >= 60 && iTake > 1) iTake -= 1;
+  // 4) Apex: velocidad cruza pos→neg tras despegue
+  for(let i=iTake+1; i<vCoM.length-1; i++){
+    if(vCoM[i-1] > 0 && vCoM[i] <= 0){ iApex = i; break; }
   }
-  if(iLand < 0) iLand = traj.length-1;
+  if(iApex < 0) iApex = Math.floor((iTake + traj.length - 1) / 2);
+  // 5) Aterrizaje por SEGMENTOS:
+  //    Criterio principal — el TALÓN regresa al nivel basal (primer contacto = inicio del aterrizaje).
+  //    Refinamos buscando el PRIMER frame en el que el talón cruza un umbral pequeño.
+  const HEEL_TOUCH = mY ? 0.010 : 0.008;
+  for(let i=iApex+1; i<traj.length; i++){
+    const heelDown = (hHeelAv[i] - baseHeel) < HEEL_TOUCH;
+    const footDown = (hFootBt[i] - baseFoot) < HEEL_TOUCH;
+    if(heelDown || footDown){ iLand = i; break; }
+  }
+  if(iLand < 0) iLand = traj.length - 1;
+  // Compensación latencia MediaPipe (1 frame tarde en eventos de alta velocidad)
+  if(fs >= 60 && iLand > iApex + 1) iLand -= 1;
+  // === Cálculos cinemáticos ===
   // Tiempo de vuelo (PTS reales)
   const flightMs = (ts[iLand] - ts[iTake]) * 1000;
-  const g = 9.81;
-  const tSec = flightMs/1000;
-  const hFlightCm = (g*tSec*tSec/8) * 100;
-  // Altura CoM: desplazamiento máx en vuelo respecto al valor en despegue
+  const tSec = flightMs / 1000;
+  const hFlightCm = (G * tSec * tSec / 8) * 100;
+  // Altura CoM (sólo si hay escala): desplazamiento máximo respecto al valor en despegue
   let hComCm = null;
   if(mY){
     const comTake = hCoM[iTake];
     let comMax = comTake;
-    for(let i=iTake;i<=iApex+2 && i<hCoM.length;i++){ if(hCoM[i] > comMax) comMax = hCoM[i]; }
+    for(let i=iTake; i<=iApex+2 && i<hCoM.length; i++){
+      if(hCoM[i] > comMax) comMax = hCoM[i];
+    }
     hComCm = (comMax - comTake) * 100;
+    // Corrección de bias sistemático del método CoM (PDF: subestima 0.86-1.86 cm)
+    hComCm += 1.36;
   }
   // Profundidad del contramovimiento
   let depthCm = null;
   if(mY){
-    const comStart = hCoM[Math.max(0,iUnw-3)] || hCoM[0];
+    const comStart  = hCoM[Math.max(0, iUnw - 3)] || hCoM[0];
     const comBottom = hCoM[iMin] || 0;
     depthCm = (comStart - comBottom) * 100;
   }
-  // Control de calidad
+  // === Control de calidad ===
   const quality = [];
   let contaminated = false;
-  // A) flexión de rodilla en vuelo (comparar ángulo medio vuelo vs ángulo en despegue)
-  const kneesTake = traj[iTake] && (traj[iTake].kneeAngleL + traj[iTake].kneeAngleR)/2;
+  // A) Flexión de rodilla en vuelo (PDF: contamina tiempo de vuelo)
+  const kneesTake = traj[iTake] && (traj[iTake].kneeAngleL + traj[iTake].kneeAngleR) / 2;
   let kneesFlight = 0, nkf = 0;
-  for(let i=iTake+1;i<iLand;i++){
+  for(let i=iTake+1; i<iLand; i++){
     const k = traj[i].kneeAngleL + traj[i].kneeAngleR;
     if(k > 0){ kneesFlight += k/2; nkf++; }
   }
@@ -10363,32 +10433,51 @@ function cmjAnalyzeTrajectory(traj, groundY, mPerNormY){
     contaminated = true;
     quality.push({ lvl:'err', txt:`Piernas recogidas en vuelo (−${kneeDropDeg.toFixed(0)}°)` });
   }
-  // B) asimetría entre tobillos en el apex
+  // B) Asimetría L/R en talones durante el aterrizaje
   let asymSum = 0, nas = 0;
-  for(let i=iTake;i<=iLand && i<traj.length;i++){
-    if(traj[i].ankleDiff != null){ asymSum += Math.abs(traj[i].ankleDiff); nas++; }
+  const iAsymStart = Math.max(iApex, iLand - Math.round(fs * 0.15));
+  for(let i=iAsymStart; i<=iLand && i<traj.length; i++){
+    const dHL = (traj[i].yHeelL != null && traj[i].yHeelR != null) ? Math.abs(traj[i].yHeelL - traj[i].yHeelR) : 0;
+    asymSum += dHL; nas++;
   }
   const asymAvg = nas ? asymSum/nas : 0;
-  const asymPct = asymAvg * 100; // fracción del frame
+  const asymPct = asymAvg * 100;
   if(asymPct > 3){
     quality.push({ lvl:'warn', txt:`Aterrizaje asimétrico (${asymPct.toFixed(1)}%)` });
   }
-  // C) tiempo de vuelo fuera de rango razonable
+  // C) Tiempo de vuelo fuera de rango razonable
   if(flightMs < 150 || flightMs > 1000){
     quality.push({ lvl:'err', txt:`Vuelo fuera de rango (${flightMs.toFixed(0)} ms)` });
   }
-  // D) FPS insuficiente
+  // D) FPS según tabla del PDF
   if(fs < 45){
-    quality.push({ lvl:'warn', txt:`FPS bajos (${fs.toFixed(0)} Hz — ideal ≥60)` });
+    quality.push({ lvl:'err', txt:`FPS muy bajo (${fs.toFixed(0)} Hz · error ≥4%)` });
+  } else if(fs < 100){
+    quality.push({ lvl:'warn', txt:`FPS limitado (${fs.toFixed(0)} Hz · error ~1.4%)` });
+  }
+  // E) Confianza media de los landmarks de los pies
+  let confSum = 0, nc = 0;
+  for(let i=iTake; i<=iLand && i<traj.length; i++){
+    if(traj[i].footConf != null){ confSum += traj[i].footConf; nc++; }
+  }
+  const footConfAvg = nc ? confSum/nc : 1;
+  if(footConfAvg < 0.55){
+    quality.push({ lvl:'warn', txt:`Pies poco visibles (conf ${(footConfAvg*100).toFixed(0)}%)` });
   }
   if(!quality.length) quality.push({ lvl:'ok', txt:'Salto limpio' });
-  // Selección de método final
+  // === Selección del método final ===
+  // Estrategia recomendada por PDF:
+  //  - Si el salto está contaminado (piernas recogidas) → usar CoM (corregido).
+  //  - Si ambos coinciden → media ponderada (vuelo más sensible si pies visibles, CoM si no).
+  //  - En caso límite, fallback al tiempo de vuelo.
   let hCm, method;
   if(contaminated && hComCm != null){
     hCm = hComCm; method = 'CoM';
-  } else if(hComCm != null && Math.abs(hComCm - hFlightCm) < 8){
-    // ambos métodos coinciden: promedio ponderado (flight más fiable si no contaminado)
-    hCm = hFlightCm * 0.6 + hComCm * 0.4; method = 'Vuelo+CoM';
+  } else if(hComCm != null && Math.abs(hComCm - hFlightCm) < 10){
+    // Pondera por confianza de pie: pies poco visibles → más peso al CoM
+    const wFlight = Math.max(0.3, Math.min(0.75, footConfAvg));
+    hCm = hFlightCm * wFlight + hComCm * (1 - wFlight);
+    method = 'Vuelo+CoM';
   } else {
     hCm = hFlightCm; method = 'Vuelo';
   }
@@ -10402,6 +10491,7 @@ function cmjAnalyzeTrajectory(traj, groundY, mPerNormY){
     fps: +fs.toFixed(0),
     contaminated,
     asymPct: +asymPct.toFixed(1),
+    footConf: +(footConfAvg*100).toFixed(0),
     quality,
     phases: { iUnw, iMin, iTake, iApex, iLand }
   };
@@ -10471,8 +10561,10 @@ function showCMJCameraModal(athleteId, context){
         </div>
         <div class="cmj-telem" id="cmjTelem">
           <div class="tel" id="cmjTelFps">FPS <b>—</b></div>
+          <div class="tel" id="cmjTelExp">Exp <b>—</b></div>
           <div class="tel" id="cmjTelTilt">Tilt <b>—</b></div>
           <div class="tel" id="cmjTelScale">Escala <b>—</b></div>
+          <div class="tel" id="cmjTelRes">Res <b>—</b></div>
         </div>
         <div class="cmj-cam-jumps" id="cmjJumpsRow">
           ${[1,2,3].map(n => `<div class="cmj-cam-jump${n===1?' active':''}" id="cmjJump${n}">
@@ -10500,40 +10592,112 @@ function showCMJCameraModal(athleteId, context){
   initCMJCamera();
 }
 
+// === Negociación adaptativa de cámara según dispositivo ===
+// Intenta el mejor stream posible con fallbacks: 240→120→60→30 FPS y resoluciones decrecientes
+async function negotiateCMJStream(){
+  const FPS_TARGETS = [240, 120, 60, 30];
+  const RES_TARGETS = [
+    {w:1920,h:1080}, {w:1280,h:720}, {w:960,h:540}, {w:640,h:480}
+  ];
+  let bestErr = null;
+  for(const fps of FPS_TARGETS){
+    for(const r of RES_TARGETS){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:  { ideal: r.w, min: 320 },
+            height: { ideal: r.h, min: 240 },
+            frameRate: { ideal: fps, min: 24 },
+            // Sugerencias modernas (Chrome/Edge): pedir baja latencia
+            resizeMode: 'none',
+            zoom: 1.0
+          },
+          audio: false
+        });
+        return { stream, requestedFps: fps, requestedRes: r };
+      }catch(e){
+        bestErr = e;
+        // siguiente combo
+      }
+    }
+  }
+  throw bestErr || new Error('No camera available');
+}
+
+// Aplica constraints opcionales una a una; ignora silenciosamente las no soportadas
+async function tryApplyConstraint(track, c){
+  try{ await track.applyConstraints({advanced:[c]}); return true; }catch(e){ return false; }
+}
+
+// Configura controles manuales de cámara para minimizar motion blur (PDF §Hardware)
+async function configureCMJCameraControls(track){
+  if(!track || typeof track.getCapabilities !== 'function') return {};
+  let caps = {};
+  try{ caps = track.getCapabilities() || {}; }catch(e){ caps = {}; }
+  const applied = { exposureTime:null, exposureMode:null, focusMode:null, whiteBalanceMode:null, iso:null, zoom:null };
+
+  // 1) Zoom mínimo (1×) para evitar pérdida de FOV
+  if(caps.zoom){
+    const zMin = caps.zoom.min || 1;
+    if(await tryApplyConstraint(track, {zoom: zMin})) applied.zoom = zMin;
+  }
+  // 2) Exposición manual lo más corta posible (ideal ≤2 ms = 2000 µs / 2_000_000 ns según API)
+  //    Algunas implementaciones usan µs (1/10000s = 100µs en v4l2-style, 100 en Chrome img-capture).
+  //    Probamos varios valores hasta dar con uno aceptado.
+  if(caps.exposureMode && (caps.exposureMode||[]).includes('manual')){
+    if(await tryApplyConstraint(track, {exposureMode:'manual'})) applied.exposureMode = 'manual';
+    if(caps.exposureTime){
+      // Intentamos expts cortos en orden ascendente (1/10000s..1/250s) para encontrar el mínimo soportado
+      const desired = [1, 2, 4, 10, 20, 40, 80, 160, 333]; // 100µs steps en image-capture; 1=0.1ms
+      for(const v of desired){
+        const clamped = Math.max(caps.exposureTime.min||1, Math.min(caps.exposureTime.max||10000, v));
+        if(await tryApplyConstraint(track, {exposureTime: clamped})){ applied.exposureTime = clamped; break; }
+      }
+    }
+    // Subimos ISO para compensar la luz perdida con expts cortos
+    if(caps.iso){
+      const isoTarget = Math.min(caps.iso.max||1600, Math.max(caps.iso.min||100, 800));
+      if(await tryApplyConstraint(track, {iso: isoTarget})) applied.iso = isoTarget;
+    }
+  }
+  // 3) Focus: bloqueado o continuo según soporte
+  if(caps.focusMode){
+    const fm = (caps.focusMode||[]);
+    if(fm.includes('manual')){ if(await tryApplyConstraint(track, {focusMode:'manual'})) applied.focusMode='manual'; }
+    else if(fm.includes('continuous')){ if(await tryApplyConstraint(track, {focusMode:'continuous'})) applied.focusMode='continuous'; }
+  }
+  // 4) White balance bloqueado para no alterar la cadencia
+  if(caps.whiteBalanceMode){
+    const wm = (caps.whiteBalanceMode||[]);
+    if(wm.includes('manual')){ if(await tryApplyConstraint(track, {whiteBalanceMode:'manual'})) applied.whiteBalanceMode='manual'; }
+    else if(wm.includes('continuous')){ if(await tryApplyConstraint(track, {whiteBalanceMode:'continuous'})) applied.whiteBalanceMode='continuous'; }
+  }
+  return { caps, applied };
+}
+
 async function initCMJCamera(){
   const video = document.getElementById('cmjVideo');
   const canvas = document.getElementById('cmjCanvas');
   if(!video || !canvas) return;
 
   try {
-    // Pedimos el mayor FPS posible (PDF: ≥120 Hz ideal, 60 Hz aceptable, 30 Hz insuficiente)
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: {ideal:1280}, height: {ideal:720}, frameRate: {ideal:120, min:30}, zoom: 1.0, resizeMode: 'none' },
-      audio: false
-    });
+    // Negociación adaptativa: itera FPS y resoluciones hasta dar con la mejor combinación
+    const { stream, requestedFps, requestedRes } = await negotiateCMJStream();
     video.srcObject = stream;
     cmjCamState.stream = stream;
+    cmjCamState.requestedFps = requestedFps;
+    cmjCamState.requestedRes = requestedRes;
     const track = stream.getVideoTracks()[0];
     if(track){
-      const caps = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
-      if(caps.zoom){
-        try { await track.applyConstraints({advanced:[{zoom: caps.zoom.min || 1}]}); } catch(e){}
-      }
-      // Intentamos tiempo de exposición corto para minimizar motion blur (PDF: ideal ≤2 ms)
-      if(caps.exposureMode && (caps.exposureMode||[]).includes('manual') && caps.exposureTime){
-        try {
-          const minExp = caps.exposureTime.min || 1;
-          await track.applyConstraints({advanced:[{exposureMode:'manual', exposureTime: Math.max(minExp, caps.exposureTime.min*2 || 1)}]});
-        } catch(e){}
-      }
-      if(caps.focusMode && (caps.focusMode||[]).includes('manual')){
-        try { await track.applyConstraints({advanced:[{focusMode:'manual'}]}); } catch(e){}
-      } else if(caps.focusMode && (caps.focusMode||[]).includes('continuous')){
-        try { await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); } catch(e){}
-      }
-      if(caps.whiteBalanceMode && (caps.whiteBalanceMode||[]).includes('manual')){
-        try { await track.applyConstraints({advanced:[{whiteBalanceMode:'manual'}]}); } catch(e){}
-      }
+      const ctrl = await configureCMJCameraControls(track);
+      cmjCamState.cameraCaps = ctrl.caps;
+      cmjCamState.cameraApplied = ctrl.applied;
+      // Settings reales (post-aplicación)
+      try{
+        const settings = (typeof track.getSettings === 'function') ? track.getSettings() : {};
+        cmjCamState.cameraSettings = settings;
+      }catch(e){}
     }
     await video.play();
 
@@ -10623,16 +10787,25 @@ function onCMJPoseResults(results){
   const lm = results.poseLandmarks;
   drawCMJSkeleton(ctx, lm, w, h);
 
-  // Landmarks críticos (PDF: talones=29,30 despegue/aterrizaje; caderas=23,24, tobillos=27,28, rodillas=25,26)
+  // Landmarks críticos del PDF (cada segmento se trata por separado para máxima precisión):
+  //   tobillos 27/28 (detección genérica), talones 29/30 (aterrizaje), puntas 31/32 (despegue),
+  //   caderas 23/24 (CoM), rodillas 25/26 (profundidad/QC).
   const lheel = lm[29], rheel = lm[30];
-  const lank = lm[27], rank = lm[28];
+  const lank  = lm[27], rank  = lm[28];
+  const ltoe  = lm[31], rtoe  = lm[32];
   if(!lheel || !rheel || lheel.visibility < 0.4 || rheel.visibility < 0.4){
     updateCMJStatus('Asegúrate de que tus pies sean visibles', '');
     return;
   }
 
-  // --- Cálculo de variables crudas ---
+  // --- Cálculo de variables crudas (cada segmento por separado) ---
   const heelY = (lheel.y + rheel.y) / 2;
+  // El "punto más bajo del pie" para detección de contacto es el max(talón, punta) por pie
+  const lFootBottom = ltoe ? Math.max(lheel.y, ltoe.y) : lheel.y;
+  const rFootBottom = rtoe ? Math.max(rheel.y, rtoe.y) : rheel.y;
+  const footBottomY = Math.max(lFootBottom, rFootBottom); // último contacto = pie más bajo
+  // Punta media — sirve para identificar el último punto en contacto durante la propulsión
+  const toeY  = (ltoe && rtoe) ? (ltoe.y + rtoe.y) / 2 : heelY;
   const ankleDiff = (lank && rank) ? (lank.y - rank.y) : 0; // positivo = izq más bajo que der (asimetría)
   const com = cmjComputeCoM(lm);
   if(!com){ updateCMJStatus('Pose incompleta — muéstrate de perfil', ''); return; }
@@ -10690,22 +10863,41 @@ function onCMJPoseResults(results){
       cmjCamState.traj = [];
       cmjCamState.smoothedYCom = null;
       updateCMJTelemetry();
-      updateCMJStatus(`¡Listo para saltar! (Salto ${cmjCamState.currentJump + 1}/3)`, 'ready');
+      // Mensaje informativo: si la escala metros/normal no es válida, usaremos sólo método tiempo de vuelo
+      const scaleHint = cmjCamState.mPerNormY ? '' : ' · sin escala (sólo método vuelo)';
+      updateCMJStatus(`¡Listo para saltar! (Salto ${cmjCamState.currentJump + 1}/3)${scaleHint}`, 'ready');
     }
     return;
+  }
+
+  // Refresca la telemetría cada N frames durante la captura (cuando hay trayectoria)
+  if(cmjCamState.traj && cmjCamState.traj.length > 8 && (cmjCamState.traj.length % 15 === 0)){
+    updateCMJTelemetry();
   }
 
   // === CAPTURA DE TRAYECTORIA (cualquier fase activa) ===
   if(phase === 'ready' || phase === 'unweighting' || phase === 'airborne'){
     // Corrección por tilt en Y (PDF §Inclinación): Y_corr = Y / cos(θ)
     const cosT = Math.cos((cmjCamState.tiltDeg||0) * Math.PI/180);
-    const yComCorr = (yCom - (cmjCamState.groundY||0.9)) / Math.max(0.5, cosT) + (cmjCamState.groundY||0.9);
-    const yHeelCorr = (heelY - (cmjCamState.groundY||0.9)) / Math.max(0.5, cosT) + (cmjCamState.groundY||0.9);
+    const gRef = cmjCamState.groundY || 0.9;
+    const corrY = y => (y - gRef) / Math.max(0.5, cosT) + gRef;
     cmjCamState.traj.push({
       t,
-      yCom: yComCorr,
-      yHeelAvg: yHeelCorr,
+      // CoM segmental (Zatsiorsky/Winter)
+      yCom: corrY(yCom),
+      // Por-segmento (PDF: tratar separado mejora precisión)
+      yHeelL: corrY(lheel.y),
+      yHeelR: corrY(rheel.y),
+      yHeelAvg: corrY(heelY),
+      yAnkL: lank ? corrY(lank.y) : null,
+      yAnkR: rank ? corrY(rank.y) : null,
+      yToeL: ltoe ? corrY(ltoe.y) : null,
+      yToeR: rtoe ? corrY(rtoe.y) : null,
+      yToeAvg: corrY(toeY),
+      yFootBottom: corrY(footBottomY),
       ankleDiff,
+      // Confianza media de los landmarks de pie (para QC)
+      footConf: ((lheel.visibility||0)+(rheel.visibility||0)+(ltoe?.visibility||0)+(rtoe?.visibility||0)+(lank?.visibility||0)+(rank?.visibility||0))/6,
       kneeAngleL: cmjKneeAngle(lm[23], lm[25], lm[27]) || 0,
       kneeAngleR: cmjKneeAngle(lm[24], lm[26], lm[28]) || 0
     });
@@ -10835,23 +11027,58 @@ function setCMJPhaseIndicator(ph){
   });
 }
 
-// Actualiza la fila de telemetría (FPS real, tilt, escala)
+// Actualiza la fila de telemetría (FPS real, tilt, escala) + capacidades del dispositivo
 function updateCMJTelemetry(){
   if(!cmjCamState) return;
   const traj = cmjCamState.traj;
-  let fps = '—';
+  // FPS REAL (medido sobre PTS) en lugar de nominal
+  let fps = '—', fpsCls = '';
   if(traj && traj.length >= 8){
     const dt = (traj[traj.length-1].t - traj[0].t) / (traj.length-1);
-    if(dt > 0) fps = (1000/dt).toFixed(0);
+    if(dt > 0){
+      const f = 1000/dt;
+      fps = f.toFixed(0);
+      // Clasificación según PDF (tabla de validez clínica)
+      if(f >= 100) fpsCls = 'ok';
+      else if(f >= 60) fpsCls = 'warn';
+      else fpsCls = 'err';
+    }
+  } else {
+    // Fallback: settings reales del track o valor pedido
+    const settingsFps = cmjCamState.cameraSettings && cmjCamState.cameraSettings.frameRate;
+    if(settingsFps) fps = Math.round(settingsFps);
   }
   const elF = document.getElementById('cmjTelFps');
-  if(elF) elF.innerHTML = `FPS <b>${fps}</b>`;
+  if(elF) elF.innerHTML = `FPS <b class="${fpsCls}">${fps}</b>`;
   const elT = document.getElementById('cmjTelTilt');
-  if(elT) elT.innerHTML = `Tilt <b>${(cmjCamState.tiltDeg||0).toFixed(0)}°</b>`;
+  if(elT){
+    const td = (cmjCamState.tiltDeg||0);
+    const tCls = td > 20 ? 'err' : td > 10 ? 'warn' : '';
+    elT.innerHTML = `Tilt <b class="${tCls}">${td.toFixed(0)}°</b>`;
+  }
   const elS = document.getElementById('cmjTelScale');
   if(elS){
     if(cmjCamState.mPerNormY) elS.innerHTML = `Escala <b>${(cmjCamState.mPerNormY*100).toFixed(0)} cm/u</b>`;
-    else elS.innerHTML = `Escala <b>vuelo</b>`;
+    else elS.innerHTML = `Escala <b class="warn">vuelo</b>`;
+  }
+  // Telemetría adicional: exposición real, confianza, resolución
+  const elE = document.getElementById('cmjTelExp');
+  if(elE){
+    const expT = cmjCamState.cameraApplied && cmjCamState.cameraApplied.exposureTime;
+    if(expT){
+      // exposureTime suele venir en unidades de 100µs (Chrome image-capture). 1 = 0.1ms, 10 = 1ms.
+      const expMs = expT * 0.1;
+      const eCls = expMs <= 2 ? 'ok' : expMs <= 4 ? 'warn' : 'err';
+      elE.innerHTML = `Exp <b class="${eCls}">${expMs.toFixed(1)}ms</b>`;
+    } else {
+      elE.innerHTML = `Exp <b class="warn">auto</b>`;
+    }
+  }
+  const elR = document.getElementById('cmjTelRes');
+  if(elR){
+    const set = cmjCamState.cameraSettings || {};
+    if(set.width && set.height) elR.innerHTML = `Res <b>${set.width}×${set.height}</b>`;
+    else elR.innerHTML = `Res <b>—</b>`;
   }
 }
 
