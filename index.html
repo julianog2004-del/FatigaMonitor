@@ -298,6 +298,8 @@
     .cmj-troch-help{background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);width:24px;height:24px;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:all .2s}
     .cmj-troch-help:hover{background:rgba(139,115,64,.25);color:#fff;border-color:var(--primary-l)}
     .cmj-btn-rec{font-size:14px;padding:14px 28px;letter-spacing:1px;font-weight:600}
+    .cmj-btn-rec:disabled,.cmj-btn-rec[disabled]{opacity:.45;cursor:not-allowed;filter:grayscale(45%);box-shadow:none;animation:none;transform:none}
+    .cmj-btn-rec:disabled:hover,.cmj-btn-rec[disabled]:hover{transform:none;box-shadow:none}
     .cmj-btn-rec.rec-on{background:linear-gradient(135deg,#dc2626 0%,#ef4444 100%);box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3);animation:cmjRecPulse 1.2s ease-in-out infinite}
     @keyframes cmjRecPulse{0%,100%{box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3)}50%{box-shadow:0 0 30px rgba(220,38,38,.7),0 4px 16px rgba(220,38,38,.5)}}
     .cmj-phase-bar{display:flex;gap:3px;margin-bottom:6px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.8px;justify-content:center;flex-wrap:wrap}
@@ -1580,7 +1582,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v32</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v33</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10140,7 +10142,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v32 · CMJ reescrito según repo vitorbn1978 (algoritmo del trocánter): mide la altura del salto a partir de la posición de la cadera y la altura real del trocánter del atleta · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v33 · CMJ — botón INICIAR se activa automáticamente cuando MediaPipe reconoce al sujeto (caderas + rodillas + tobillos visibles) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10290,7 +10292,7 @@ function showCMJCameraModal(athleteId, context){
           <div class="avg-unit">centímetros</div>
         </div>
         <div class="cmj-cam-actions">
-          <button id="cmjBtnRecord" class="btn btn-primary cmj-btn-rec" onclick="cmjToggleRecord()"><i class="fas fa-circle"></i> INICIAR salto 1</button>
+          <button id="cmjBtnRecord" class="btn btn-primary cmj-btn-rec" disabled onclick="cmjToggleRecord()"><i class="fas fa-circle"></i> INICIAR salto 1</button>
           <button id="cmjBtnSave" class="btn btn-success hidden" onclick="cmjSaveResult()"><i class="fas fa-check"></i> Guardar</button>
           <button class="btn btn-ghost" onclick="closeCMJCamera()" style="color:#fff"><i class="fas fa-times"></i> Cancelar</button>
         </div>
@@ -10380,6 +10382,7 @@ function onCMJPoseResults(results){
 
   if(!results.poseLandmarks){
     if(cmjCamState.recording) setCMJStatus('No se detecta persona — sitúate de PERFIL completo', 'jumping');
+    cmjUpdateStartButtonReadiness(false);
     return;
   }
 
@@ -10388,10 +10391,17 @@ function onCMJPoseResults(results){
 
   // Trocánter virtual = media de las dos caderas (LEFT_HIP=23, RIGHT_HIP=24)
   const lh = lm[23], rh = lm[24];
-  if(!lh || !rh) return;
+  if(!lh || !rh){ cmjUpdateStartButtonReadiness(false); return; }
   const yHip = (lh.y + rh.y) / 2;
   const xHip = (lh.x + rh.x) / 2;
   const visAvg = ((lh.visibility||0) + (rh.visibility||0))/2;
+
+  // Detección completa = caderas + rodillas + tobillos visibles con confianza ≥ 0.5
+  // Cuando se cumple, el botón INICIAR se activa solo (si no estamos ya grabando).
+  const visKnees   = ((lm[25]?.visibility||0) + (lm[26]?.visibility||0)) / 2;
+  const visAnkles  = ((lm[27]?.visibility||0) + (lm[28]?.visibility||0)) / 2;
+  const subjectReady = visAvg > 0.5 && visKnees > 0.5 && visAnkles > 0.5;
+  cmjUpdateStartButtonReadiness(subjectReady);
 
   // Marcador grande del trocánter
   ctx.beginPath();
@@ -10486,7 +10496,7 @@ function cmjStopRecord(){
   if(!samples || samples.length < 30){
     setCMJStatus('Muestras insuficientes — graba al menos 1 segundo', '');
     const btn = document.getElementById('cmjBtnRecord');
-    if(btn){ btn.classList.remove('rec-on'); btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${cmjCamState.currentJump+1}`; }
+    if(btn){ btn.classList.remove('rec-on'); btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${cmjCamState.currentJump+1}`; }
     return;
   }
 
@@ -10515,7 +10525,7 @@ function cmjStopRecord(){
   if(jumpCm < 3 || jumpCm > 100){
     setCMJStatus(`Salto fuera de rango (${jumpCm} cm) — repite manteniendo la cámara fija`, '');
     const btn = document.getElementById('cmjBtnRecord');
-    if(btn){ btn.classList.remove('rec-on'); btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${cmjCamState.currentJump+1}`; }
+    if(btn){ btn.classList.remove('rec-on'); btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${cmjCamState.currentJump+1}`; }
     return;
   }
 
@@ -10552,8 +10562,8 @@ function cmjStopRecord(){
       const next = document.getElementById(`cmjJump${nextIdx+1}`);
       if(next) next.classList.add('active');
       const btn = document.getElementById('cmjBtnRecord');
-      if(btn){ btn.classList.remove('rec-on'); btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${nextIdx+1}`; }
-      setCMJStatus(`Salto registrado: ${jumpCm.toFixed(1)} cm — pulsa INICIAR para el siguiente`, 'result');
+      if(btn){ btn.classList.remove('rec-on'); btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${nextIdx+1}`; }
+      setCMJStatus(`Salto registrado: ${jumpCm.toFixed(1)} cm — colócate para el siguiente`, 'result');
     }
   }
 }
@@ -10597,9 +10607,10 @@ function cmjRepeatJump(jumpNum){
   if(btn){
     btn.classList.remove('hidden');
     btn.classList.remove('rec-on');
+    btn.disabled = true;
     btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${jumpNum}`;
   }
-  setCMJStatus(`Repitiendo salto ${jumpNum} — pulsa INICIAR cuando estés listo`, 'ready');
+  setCMJStatus(`Repitiendo salto ${jumpNum} — colócate frente a la cámara`, '');
 }
 
 function cmjSaveResult(){
@@ -10635,6 +10646,26 @@ function setCMJStatus(text, cls){
   if(el){
     el.textContent = text;
     el.className = 'status-text' + (cls ? ' ' + cls : '');
+  }
+}
+
+// Activa/desactiva el botón INICIAR según si MediaPipe ha reconocido al sujeto
+// completamente (caderas + rodillas + tobillos visibles).
+// Nunca cambia el estado si estamos grabando o si el botón ya está oculto/sustituido.
+function cmjUpdateStartButtonReadiness(ready){
+  if(!cmjCamState || cmjCamState.recording) return;
+  const btn = document.getElementById('cmjBtnRecord');
+  if(!btn || btn.classList.contains('hidden')) return;
+  if(ready){
+    if(btn.disabled){
+      btn.disabled = false;
+      setCMJStatus(`Sujeto detectado — pulsa INICIAR cuando vayas a saltar (salto ${cmjCamState.currentJump+1}/3)`, 'ready');
+    }
+  } else {
+    if(!btn.disabled){
+      btn.disabled = true;
+      setCMJStatus('Esperando detección — sitúate de PERFIL completo frente a la cámara', '');
+    }
   }
 }
 
