@@ -1571,7 +1571,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v30</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v31</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10131,7 +10131,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v30 · CMJ suelo refinado: calibración robusta (footBottom + IQR) + auto-tracking + tilt promedio sobre RAW + zona tolerancia visible · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v31 · CMJ corrección de errores reportados: validación postura DE PIE + groundY plausible + sin auto-tracking + esqueleto con landmarks diferenciados · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10744,7 +10744,7 @@ async function initCMJCamera(){
     pose.onResults(onCMJPoseResults);
     cmjCamState.pose = pose;
 
-    updateCMJStatus('Buscando posición...', '');
+    updateCMJStatus('Sitúate DE PIE, de perfil completo, a 3-5 m de la cámara', '');
     cmjCamState.phase = 'calibrating';
     cmjCamState.calibFrames = 0;
     cmjCamState.calibSamples = [];
@@ -10840,15 +10840,55 @@ function onCMJPoseResults(results){
   const phase = cmjCamState.phase;
 
   // === CALIBRACIÓN DEL SUELO ===
-  // El "suelo" se define como la posición Y del PUNTO MÁS BAJO DEL PIE (max de talón y punta)
-  // cuando el atleta está inmóvil de pie.
-  //  · Calibración basada en tiempo absoluto (1.2 s) en lugar de en frames fijos →
-  //    independiente del FPS del dispositivo.
-  //  · Validación de varianza (IQR < 2.5 % del frame) → rechaza si el atleta se mueve.
-  //  · Almacena coords RAW (sin corrección de tilt) para que la línea del suelo
-  //    permanezca estable en pantalla. La corrección de tilt se aplica luego en el análisis.
+  // Requisitos durante la calibración:
+  //  · Atleta DE PIE COMPLETAMENTE EXTENDIDO (rodillas > 160°)
+  //  · Pies, tobillos, rodillas y caderas visibles con confianza ≥ 0.55
+  //  · Pies en la mitad inferior del frame (Y > 0.55)
+  //  · Inmóvil durante 1.2 s (IQR < 2.5%)
+  //
+  // Si algún requisito falla, la calibración se PAUSA (no se acumulan muestras malas).
+  // Almacena coords RAW (sin tilt) para que la línea del suelo permanezca estable;
+  // la corrección de tilt se aplica luego en cmjAnalyzeTrajectory.
   if(phase === 'calibrating'){
-    cmjCamState.calibSamples.push(footBottomY);     // punto más bajo del pie
+    setCMJPhaseIndicator('silent');
+
+    // ----- Validación de postura DE PIE -----
+    const kneeL = cmjKneeAngle(lm[23], lm[25], lm[27]) || 0;
+    const kneeR = cmjKneeAngle(lm[24], lm[26], lm[28]) || 0;
+    const kneeAvg = (kneeL + kneeR) / 2;
+    // Confianza media de landmarks críticos
+    const visAnk  = ((lank?.visibility||0) + (rank?.visibility||0))/2;
+    const visKnee = ((lm[25]?.visibility||0) + (lm[26]?.visibility||0))/2;
+    const visHip  = ((lm[23]?.visibility||0) + (lm[24]?.visibility||0))/2;
+    const visAll = (visAnk + visKnee + visHip)/3;
+
+    // Comprobamos requisitos en orden — el primer fallo congela el progreso
+    let reason = null;
+    if(visAll < 0.55) reason = 'Acércate y muéstrate de perfil completo';
+    else if(visAnk < 0.55) reason = 'No se ven bien los tobillos — baja la cámara o aléjate';
+    else if(footBottomY < 0.55) reason = 'Los pies deben quedar en la mitad inferior del frame — baja la cámara';
+    else if(footBottomY > 0.98) reason = 'Aleja la cámara o el cuerpo del borde inferior';
+    else if(kneeAvg > 0 && kneeAvg < 160) reason = 'De PIE completamente extendido (rodillas estiradas)';
+
+    if(reason){
+      // No acumulamos muestras inválidas: se muestra el motivo
+      updateCMJStatus(`Posición no válida: ${reason}`, '');
+      // Dibuja el suelo PROVISIONAL (basado en el footBottomY actual) en gris para que el
+      // usuario vea dónde quedaría el suelo si sigue así
+      drawCMJGround(ctx, footBottomY, w, h, 'rgba(255,255,255,.25)', 0);
+      return;
+    }
+
+    // ----- Acumular muestra válida -----
+    // Para máxima robustez usamos también la posición media del TOBILLO + offset estimado al pie
+    // (la altura del tobillo es más estable que la del talón/punta cuando MediaPipe se equivoca).
+    // Tomamos como referencia el max() de footBottom y ankleAvg+offset_pie para protegernos.
+    const ankleAvgY = lank && rank ? (lank.y + rank.y)/2 : footBottomY;
+    // El tobillo está ~3-4 cm por encima del suelo en una persona de pie. En coords normalizadas,
+    // si el cuerpo ocupa ~0.6 del frame y mide 1.75 m, eso es ~0.012 (1.2 %).
+    const sampleGround = Math.max(footBottomY, ankleAvgY + 0.012);
+
+    cmjCamState.calibSamples.push(sampleGround);
     cmjCamState.calibComSamples.push(yCom);
     if(!cmjCamState._calibTiltSamples) cmjCamState._calibTiltSamples = [];
     cmjCamState._calibTiltSamples.push(cmjCamState.tiltDeg || 0);
@@ -10856,7 +10896,7 @@ function onCMJPoseResults(results){
     const nose = lm[0];
     if(nose){
       const headTop = nose.y - 0.6*Math.abs((lm[11] && lm[12] ? (lm[11].y+lm[12].y)/2 : nose.y+0.1) - nose.y);
-      cmjCamState.calibBodyHeightSamples.push(footBottomY - headTop);
+      cmjCamState.calibBodyHeightSamples.push(sampleGround - headTop);
     }
     cmjCamState.calibFrames++;
 
@@ -10865,26 +10905,22 @@ function onCMJPoseResults(results){
     const targetFrames = Math.max(24, Math.round(fpsEst * 1.2));
     const progress = Math.min(100, Math.round(cmjCamState.calibFrames / targetFrames * 100));
 
-    // Feedback de estabilidad en vivo: varianza de los últimos 10 frames
+    // Feedback de estabilidad en vivo
     let mov = '', stable = true;
     if(cmjCamState.calibSamples.length >= 10){
       const last = cmjCamState.calibSamples.slice(-10);
       const mean = last.reduce((a,b)=>a+b,0)/last.length;
       const std = Math.sqrt(last.reduce((s,v)=>s+(v-mean)**2,0)/last.length);
-      if(std > 0.012){ // > 1.2% del frame ≈ 1.5 cm de oscilación
-        mov = ' · te estás moviendo, quieto';
-        stable = false;
-      }
+      if(std > 0.012){ mov = ' · QUIETO'; stable = false; }
     }
 
-    updateCMJStatus(`Calibrando suelo (${progress}%)${mov}`, stable ? '' : '');
-    setCMJPhaseIndicator('silent');
+    updateCMJStatus(`Calibrando — DE PIE inmóvil (${progress}%)${mov}`, '');
 
-    // Línea del suelo provisional (mediana de muestras hasta ahora) → no tiembla
+    // Línea del suelo provisional (mediana acumulada) — no tiembla
     if(cmjCamState.calibSamples.length >= 6){
       const med = arr => { const s=[...arr].sort((a,b)=>a-b); return s[Math.floor(s.length/2)]; };
       const provGround = med(cmjCamState.calibSamples);
-      const provColor = stable ? 'rgba(255,255,255,.45)' : 'rgba(251,191,36,.55)';
+      const provColor = stable ? 'rgba(255,255,255,.50)' : 'rgba(251,191,36,.65)';
       drawCMJGround(ctx, provGround, w, h, provColor, 0);
     }
 
@@ -10896,7 +10932,6 @@ function onCMJPoseResults(results){
       const q3 = sorted[Math.floor(sorted.length*0.75)];
       const iqr = q3 - q1;
       if(iqr > 0.025){
-        // Calibración inestable: reiniciar con feedback explícito
         cmjCamState.calibSamples = [];
         cmjCamState.calibComSamples = [];
         cmjCamState.calibBodyHeightSamples = [];
@@ -10905,14 +10940,27 @@ function onCMJPoseResults(results){
         updateCMJStatus('Calibración inestable — quédate completamente inmóvil', '');
         return;
       }
-      // groundY robusta: descarta el 20% extremo y promedia el resto (trimmed mean)
+      // groundY robusta: trimmed mean (descarta 20 % extremo)
       const lo = Math.floor(sorted.length*0.10), hi = Math.ceil(sorted.length*0.90);
       const trimmed = sorted.slice(lo, hi);
-      cmjCamState.groundY = trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
+      const calibratedGround = trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
+
+      // VALIDACIÓN FINAL DEL groundY: debe estar en la mitad inferior del frame.
+      if(calibratedGround < 0.55 || calibratedGround > 0.98){
+        cmjCamState.calibSamples = [];
+        cmjCamState.calibComSamples = [];
+        cmjCamState.calibBodyHeightSamples = [];
+        cmjCamState._calibTiltSamples = [];
+        cmjCamState.calibFrames = 0;
+        updateCMJStatus(`Suelo en posición inválida (${(calibratedGround*100).toFixed(0)}% del frame). Ajusta la cámara y vuelve a intentar.`, '');
+        return;
+      }
+
+      cmjCamState.groundY = calibratedGround;
       cmjCamState.groundIQR = iqr;
       cmjCamState.groundTiltAtCalib = med(cmjCamState._calibTiltSamples);
       cmjCamState.bodyHeightNorm = cmjCamState.calibBodyHeightSamples.length ? med(cmjCamState.calibBodyHeightSamples) : null;
-      // Escala m/unidad: altura corporal conocida / altura en frame, corregida por tilt CALIBRADO
+      // Escala m/unidad: altura corporal conocida / altura en frame, corregida por tilt
       const hCm = cmjCamState.athHeightCm || 0;
       if(hCm > 100 && cmjCamState.bodyHeightNorm && cmjCamState.bodyHeightNorm > 0.2){
         const cosT = Math.cos((cmjCamState.groundTiltAtCalib||0) * Math.PI/180);
@@ -10920,10 +10968,9 @@ function onCMJPoseResults(results){
       } else {
         cmjCamState.mPerNormY = null;
       }
-      // Umbral de despegue: 2.5 % del frame por debajo del suelo
-      // (≈ 3-4 cm en 720p, suficiente para distinguir un salto real del ruido)
-      cmjCamState.airborneThreshold = cmjCamState.groundY - 0.025;
-      cmjCamState.landingThreshold  = cmjCamState.groundY - 0.008; // 0.8 % para detectar contacto
+      // Umbrales separados para despegue y aterrizaje
+      cmjCamState.airborneThreshold = cmjCamState.groundY - 0.030; // 3.0 % ≈ 4-5 cm en 1080p
+      cmjCamState.landingThreshold  = cmjCamState.groundY - 0.010; // 1.0 % para detectar contacto
       cmjCamState.phase = 'ready';
       cmjCamState.traj = [];
       cmjCamState.smoothedYCom = null;
@@ -10964,52 +11011,51 @@ function onCMJPoseResults(results){
     if(cmjCamState.traj.length > 1800) cmjCamState.traj.shift();
   }
 
-  // Auto-tracking del groundY durante 'ready': refina con los últimos frames inmóviles.
-  // Compensa pequeños desplazamientos del atleta o cambios de tilt entre saltos.
-  if(phase === 'ready' && cmjCamState.traj.length >= 30){
-    const tail = cmjCamState.traj.slice(-30).map(f => f.yFootBottom);
-    const tailMean = tail.reduce((a,b)=>a+b,0)/tail.length;
-    const tailStd = Math.sqrt(tail.reduce((s,v)=>s+(v-tailMean)**2,0)/tail.length);
-    if(tailStd < 0.006){ // muy quieto: ajuste suave del groundY
-      const drift = tailMean - cmjCamState.groundY;
-      if(Math.abs(drift) > 0.003 && Math.abs(drift) < 0.04){
-        // Aplicar 30 % del drift detectado (ajuste suave, no salto brusco)
-        cmjCamState.groundY += drift * 0.30;
-        cmjCamState.airborneThreshold = cmjCamState.groundY - 0.025;
-        cmjCamState.landingThreshold  = cmjCamState.groundY - 0.008;
-      }
-    }
-  }
+  // (Auto-tracking del groundY desactivado en v31 — causaba desplazamientos erróneos
+  // si los landmarks de los pies se inestabilizaban. Para recalibrar entre saltos se
+  // exige ya un nuevo ciclo de calibración explícito.)
 
   // === MÁQUINA DE FASES TIEMPO REAL ===
   // En todas las fases dibujamos el SUELO en su posición fija (calibrada) con su zona
   // de tolerancia visible para el usuario.
+  // NOTA: Para pasar a 'airborne' exigimos que AMBOS pies (talón Y punta) estén por
+  // encima del umbral, además de que el CoM esté subiendo (síntoma de propulsión).
+  // Esto evita falsos despegues por jitter de MediaPipe.
   if(phase === 'ready'){
-    drawCMJGround(ctx, cmjCamState.groundY, w, h, 'rgba(74,222,128,.65)', 0.025);
+    drawCMJGround(ctx, cmjCamState.groundY, w, h, 'rgba(74,222,128,.65)', 0.030);
     // CoM base: mediana de la calibración (más robusta que el último sample)
     const baseSamples = cmjCamState.calibComSamples;
     const yComBase = baseSamples.length
       ? [...baseSamples].sort((a,b)=>a-b)[Math.floor(baseSamples.length/2)]
       : syCom;
-    if(syCom > yComBase + 0.015){
+    if(syCom > yComBase + 0.020){
       cmjCamState.phase = 'unweighting';
       setCMJPhaseIndicator('ecc');
       updateCMJStatus('Bajando — contramovimiento', '');
-    } else if(footBottomY < cmjCamState.airborneThreshold){
-      // Salto directo sin contramovimiento detectado (atleta muy rápido)
+    }
+    // (Eliminada la rama "salto directo sin contramovimiento" — generaba falsos
+    // despegues por jitter de los pies cuando el atleta sólo se reposicionaba.)
+  }
+  else if(phase === 'unweighting'){
+    drawCMJGround(ctx, cmjCamState.groundY, w, h, 'rgba(251,191,36,.65)', 0.030);
+    // El CoM debe haber pasado por su mínimo y estar subiendo (señal de propulsión)
+    const baseSamples = cmjCamState.calibComSamples;
+    const yComBase = baseSamples.length
+      ? [...baseSamples].sort((a,b)=>a-b)[Math.floor(baseSamples.length/2)]
+      : syCom;
+    const comAscending = (cmjCamState.lastYCom != null) && (syCom < cmjCamState.lastYCom - 0.001);
+    if(footBottomY < cmjCamState.airborneThreshold && comAscending){
       cmjCamState.phase = 'airborne';
       cmjCamState.takeoffTime = t;
       setCMJPhaseIndicator('fly');
       updateCMJStatus('¡Saltando!', 'jumping');
     }
-  }
-  else if(phase === 'unweighting'){
-    drawCMJGround(ctx, cmjCamState.groundY, w, h, 'rgba(251,191,36,.65)', 0.025);
-    if(footBottomY < cmjCamState.airborneThreshold){
-      cmjCamState.phase = 'airborne';
-      cmjCamState.takeoffTime = t;
-      setCMJPhaseIndicator('fly');
-      updateCMJStatus('¡Saltando!', 'jumping');
+    // Si el atleta vuelve a la postura de reposo sin saltar (ej. abandona el intento),
+    // permitimos volver a 'ready'
+    if(syCom < yComBase + 0.005 && (cmjCamState.lastYCom != null) && (syCom < cmjCamState.lastYCom)){
+      cmjCamState.phase = 'ready';
+      setCMJPhaseIndicator('silent');
+      updateCMJStatus(`¡Listo para saltar! (Salto ${cmjCamState.currentJump + 1}/3)`, 'ready');
     }
   }
   else if(phase === 'airborne'){
@@ -11095,6 +11141,9 @@ function onCMJPoseResults(results){
   else if(phase === 'done'){
     drawCMJGround(ctx, cmjCamState.groundY, w, h, 'rgba(166,137,78,.65)', 0);
   }
+
+  // Memoria del CoM previo para detectar ascenso/descenso entre frames consecutivos
+  cmjCamState.lastYCom = syCom;
 }
 
 // Actualiza la barra visual de fases
@@ -11186,10 +11235,10 @@ function drawCMJSkeleton(ctx, landmarks, w, h){
   const connections = [
     [11,13],[13,15],[12,14],[14,16], // arms
     [11,12],[11,23],[12,24],[23,24], // torso
-    [23,25],[25,27],[27,29],[27,31], // left leg
-    [24,26],[26,28],[28,30],[28,32]  // right leg
+    [23,25],[25,27],[27,29],[27,31],[29,31], // left leg + foot triangle
+    [24,26],[26,28],[28,30],[28,32],[30,32]  // right leg + foot triangle
   ];
-  ctx.strokeStyle = 'rgba(139,115,64,.7)';
+  ctx.strokeStyle = 'rgba(166,137,78,.85)';
   ctx.lineWidth = 2;
   connections.forEach(([a,b]) => {
     const la = landmarks[a], lb = landmarks[b];
@@ -11200,16 +11249,42 @@ function drawCMJSkeleton(ctx, landmarks, w, h){
       ctx.stroke();
     }
   });
-  // Draw heel points highlighted
+  // Tobillos (27,28) en azul (referencia estable)
+  [27,28].forEach(idx => {
+    const lm = landmarks[idx];
+    if(lm && lm.visibility > 0.3){
+      ctx.beginPath();
+      ctx.arc(lm.x * w, lm.y * h, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(96,165,250,.95)';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  });
+  // Talones (29,30) en amarillo (críticos para aterrizaje)
   [29,30].forEach(idx => {
     const lm = landmarks[idx];
     if(lm && lm.visibility > 0.3){
       ctx.beginPath();
       ctx.arc(lm.x * w, lm.y * h, 6, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(251,191,36,.9)';
+      ctx.fillStyle = 'rgba(251,191,36,.95)';
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  });
+  // Puntas del pie (31,32) en rojo (críticas para despegue)
+  [31,32].forEach(idx => {
+    const lm = landmarks[idx];
+    if(lm && lm.visibility > 0.3){
+      ctx.beginPath();
+      ctx.arc(lm.x * w, lm.y * h, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(239,68,68,.95)';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
   });
@@ -11392,7 +11467,7 @@ function restartCMJCamera(){
   document.getElementById('cmjAvgBox')?.classList.add('hidden');
   document.getElementById('cmjActions')?.classList.add('hidden');
   setCMJPhaseIndicator('silent');
-  updateCMJStatus('Calibrando — mantente quieto de perfil', '');
+  updateCMJStatus('Sitúate DE PIE, de perfil completo, a 3-5 m de la cámara', '');
 }
 
 function closeCMJCamera(){
