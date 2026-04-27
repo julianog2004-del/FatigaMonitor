@@ -273,9 +273,10 @@
     .cmj-cam-hdr{position:absolute;top:0;left:0;right:0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:20;background:linear-gradient(rgba(0,0,0,.6),transparent)}
     .cmj-cam-hdr h2{font-family:var(--serif);font-size:16px;color:#fff;font-weight:400;letter-spacing:1px;text-shadow:0 1px 4px rgba(0,0,0,.6)}
     .cmj-cam-close{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;backdrop-filter:blur(4px)}.cmj-cam-close:hover{background:rgba(255,255,255,.2)}
-    .cmj-cam-status{position:absolute;bottom:0;left:0;right:0;padding:10px 12px;z-index:15;text-align:center}
-    .cmj-cam-status .status-text{font-family:var(--mono);font-size:14px;color:#fff;letter-spacing:.5px;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+    .cmj-cam-status{padding:8px 12px;text-align:center;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.10);border-radius:6px;backdrop-filter:blur(6px);width:100%}
+    .cmj-cam-status .status-text{font-family:var(--mono);font-size:13px;color:#fff;letter-spacing:.5px;text-shadow:0 1px 6px rgba(0,0,0,.8);line-height:1.4;display:block}
     .cmj-cam-status .status-text.ready{color:#4ADE80}.cmj-cam-status .status-text.jumping{color:#FBBF24}.cmj-cam-status .status-text.result{color:var(--primary-l)}
+    .cmj-cam-status .status-countdown{display:inline-block;background:rgba(34,197,94,.25);border:1px solid #4ADE80;border-radius:50%;width:28px;height:28px;line-height:26px;font-family:'DM Sans',var(--sans);font-size:18px;font-weight:700;color:#4ADE80;margin-right:8px;vertical-align:middle;text-align:center}
     .cmj-cam-bottom{position:absolute;bottom:0;left:0;right:0;z-index:20;padding:0 12px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(transparent,rgba(0,0,0,.85) 40%);padding-top:40px}
     .cmj-cam-jumps{display:flex;gap:8px;justify-content:center;width:100%}
     .cmj-cam-jump{flex:1;max-width:110px;padding:8px 6px;border-radius:6px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);text-align:center;cursor:default;position:relative;backdrop-filter:blur(6px)}
@@ -1584,7 +1585,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v34</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v35</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10144,7 +10145,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v34 · CMJ: botón INICIAR con feedback verde brillante al detectar al sujeto + corrección automática −5cm sobre el resultado final · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v35 · CMJ totalmente automático: cuenta atrás 3-2-1 al detectar al sujeto y arranca solo · Status reposicionado fuera de los botones · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10253,6 +10254,8 @@ function showCMJCameraModal(athleteId, context){
     currentJump: 0,
     recording: false,
     autoStopTimer: null,
+    autoStartTimer: null,                // setInterval de la cuenta atrás
+    autoStartCountdown: 0,               // segundos restantes (3..0)
     hipSamples: [],                      // [{t, y}] del trocánter (cadera media)
     pose: null,
     stream: null,
@@ -10476,6 +10479,8 @@ function cmjStartRecord(){
   cmjCamState.trochanterCm = trochCm;
   cmjCamState.recording = true;
   cmjCamState.hipSamples = [];
+  // Cancelar la cuenta atrás automática (por si pulsó manualmente antes de los 3 s)
+  cmjCancelAutoStart();
   // Auto-stop a los 6 s (suficiente para reposo + contramovimiento + vuelo + aterrizaje + reposo)
   cmjCamState.autoStopTimer = setTimeout(()=>{
     if(cmjCamState && cmjCamState.recording) cmjStopRecord();
@@ -10571,7 +10576,13 @@ function cmjStopRecord(){
       const next = document.getElementById(`cmjJump${nextIdx+1}`);
       if(next) next.classList.add('active');
       const btn = document.getElementById('cmjBtnRecord');
-      if(btn){ btn.classList.remove('rec-on'); btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${nextIdx+1}`; }
+      if(btn){
+        btn.classList.remove('rec-on');
+        btn.classList.remove('ready');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${nextIdx+1}`;
+      }
+      cmjCancelAutoStart();
       setCMJStatus(`Salto registrado: ${jumpCm.toFixed(1)} cm — colócate para el siguiente`, 'result');
     }
   }
@@ -10616,9 +10627,11 @@ function cmjRepeatJump(jumpNum){
   if(btn){
     btn.classList.remove('hidden');
     btn.classList.remove('rec-on');
+    btn.classList.remove('ready');
     btn.disabled = true;
     btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${jumpNum}`;
   }
+  cmjCancelAutoStart();
   setCMJStatus(`Repitiendo salto ${jumpNum} — colócate frente a la cámara`, '');
 }
 
@@ -10654,7 +10667,9 @@ function cmjSaveResult(){
 function setCMJStatus(text, cls){
   const el = document.getElementById('cmjStatusText');
   if(el){
-    el.textContent = text;
+    // Permitimos HTML para mostrar el círculo de countdown (.status-countdown)
+    if(text && text.indexOf('<') !== -1) el.innerHTML = text;
+    else el.textContent = text;
     el.className = 'status-text' + (cls ? ' ' + cls : '');
   }
 }
@@ -10662,6 +10677,48 @@ function setCMJStatus(text, cls){
 // Activa/desactiva el botón INICIAR según si MediaPipe ha reconocido al sujeto
 // completamente (caderas + rodillas + tobillos visibles).
 // Nunca cambia el estado si estamos grabando o si el botón ya está oculto/sustituido.
+// Cancela la cuenta atrás automática (si la hay)
+function cmjCancelAutoStart(){
+  if(!cmjCamState) return;
+  if(cmjCamState.autoStartTimer){
+    clearInterval(cmjCamState.autoStartTimer);
+    cmjCamState.autoStartTimer = null;
+  }
+  cmjCamState.autoStartCountdown = 0;
+}
+
+// Arranca la cuenta atrás automática (3..2..1) y luego inicia la grabación.
+function cmjBeginAutoStart(){
+  if(!cmjCamState || cmjCamState.recording || cmjCamState.autoStartTimer) return;
+  // Comprobamos altura del trocánter primero
+  const inp = document.getElementById('cmjTrochInp');
+  const trochCm = inp ? parseFloat(inp.value) : cmjCamState.trochanterCm;
+  if(!trochCm || trochCm < 50 || trochCm > 130){
+    setCMJStatus('Introduce una altura del trocánter válida (50-130 cm) y vuelve a colocarte', '');
+    return;
+  }
+  cmjCamState.autoStartCountdown = 3;
+  const renderTick = () => {
+    if(!cmjCamState) return;
+    const n = cmjCamState.autoStartCountdown;
+    if(n > 0){
+      setCMJStatus(`<span class="status-countdown">${n}</span> Iniciando salto ${cmjCamState.currentJump+1}/3 — quédate quieto`, 'ready');
+    }
+  };
+  renderTick();
+  cmjCamState.autoStartTimer = setInterval(() => {
+    if(!cmjCamState){ return; }
+    cmjCamState.autoStartCountdown--;
+    if(cmjCamState.autoStartCountdown <= 0){
+      cmjCancelAutoStart();
+      // Inicia automáticamente la grabación
+      cmjStartRecord();
+    } else {
+      renderTick();
+    }
+  }, 1000);
+}
+
 function cmjUpdateStartButtonReadiness(ready){
   if(!cmjCamState || cmjCamState.recording) return;
   const btn = document.getElementById('cmjBtnRecord');
@@ -10669,18 +10726,27 @@ function cmjUpdateStartButtonReadiness(ready){
   if(ready){
     if(btn.disabled){
       btn.disabled = false;
-      btn.classList.add('ready');   // → letras verdes + glow animado
-      setCMJStatus(`Sujeto detectado — pulsa INICIAR cuando vayas a saltar (salto ${cmjCamState.currentJump+1}/3)`, 'ready');
+      btn.classList.add('ready');
+      // Auto-start: cuando se detecta al sujeto, arranca cuenta atrás de 3 s
+      // (salvo que ya haya una en curso o la grabación esté activa)
+      if(!cmjCamState.autoStartTimer && !cmjCamState.recording){
+        cmjBeginAutoStart();
+      }
     } else if(!btn.classList.contains('ready')){
       btn.classList.add('ready');
+      if(!cmjCamState.autoStartTimer && !cmjCamState.recording){
+        cmjBeginAutoStart();
+      }
     }
   } else {
     if(!btn.disabled){
       btn.disabled = true;
       btn.classList.remove('ready');
+      cmjCancelAutoStart();
       setCMJStatus('Esperando detección — sitúate de PERFIL completo frente a la cámara', '');
     } else {
       btn.classList.remove('ready');
+      if(cmjCamState.autoStartTimer) cmjCancelAutoStart();
     }
   }
 }
@@ -10688,6 +10754,7 @@ function cmjUpdateStartButtonReadiness(ready){
 function closeCMJCamera(){
   if(cmjCamState){
     if(cmjCamState.autoStopTimer) clearTimeout(cmjCamState.autoStopTimer);
+    if(cmjCamState.autoStartTimer) clearInterval(cmjCamState.autoStartTimer);
     if(cmjCamState.animFrame) cancelAnimationFrame(cmjCamState.animFrame);
     if(cmjCamState.stream){
       cmjCamState.stream.getTracks().forEach(t => t.stop());
