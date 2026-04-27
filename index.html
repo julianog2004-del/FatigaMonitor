@@ -1585,7 +1585,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v35</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v36</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10145,7 +10145,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v35 · CMJ totalmente automático: cuenta atrás 3-2-1 al detectar al sujeto y arranca solo · Status reposicionado fuera de los botones · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v36 · CMJ: arreglado bug 13.7cm → pre-buffer de reposo + sin corrección arbitraria + auto-stop 10s · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10437,6 +10437,15 @@ function onCMJPoseResults(results){
     ctx.font = '600 11px DM Mono, monospace';
     ctx.fillText('MÁX. ALTURA', 8, yMinSoFar*h - 4);
   }
+  // Buffer de PRE-RECORD: capturamos la posición del trocánter cuando el sujeto está
+  // detectado pero todavía NO grabando. Estos samples son la mejor estimación de la
+  // posición de pie en reposo (yInicial), porque el atleta está parado esperando el
+  // countdown. Mantenemos un buffer rodante de los últimos 60 frames (~2 s).
+  if(!cmjCamState.recording && visAvg > 0.55){
+    if(!cmjCamState.preRecordHipSamples) cmjCamState.preRecordHipSamples = [];
+    cmjCamState.preRecordHipSamples.push({ t: cmjCamState.currentFrameTs, y: yHip });
+    if(cmjCamState.preRecordHipSamples.length > 60) cmjCamState.preRecordHipSamples.shift();
+  }
 }
 
 function drawCMJSkeleton(ctx, landmarks, w, h){
@@ -10479,12 +10488,14 @@ function cmjStartRecord(){
   cmjCamState.trochanterCm = trochCm;
   cmjCamState.recording = true;
   cmjCamState.hipSamples = [];
+  // El pre-record buffer (capturado durante la fase verde + countdown) se conserva
+  // como referencia de yInicial. NO lo limpiamos aquí.
   // Cancelar la cuenta atrás automática (por si pulsó manualmente antes de los 3 s)
   cmjCancelAutoStart();
-  // Auto-stop a los 6 s (suficiente para reposo + contramovimiento + vuelo + aterrizaje + reposo)
+  // Auto-stop a los 10 s (suficiente para reposo + contramovimiento + vuelo + aterrizaje + reposo + margen)
   cmjCamState.autoStopTimer = setTimeout(()=>{
     if(cmjCamState && cmjCamState.recording) cmjStopRecord();
-  }, 6000);
+  }, 10000);
   // UI
   const btn = document.getElementById('cmjBtnRecord');
   if(btn){
@@ -10510,22 +10521,38 @@ function cmjStopRecord(){
 
   // === FÓRMULA DEL REPOSITORIO (vitorbn1978) ===
   // jumpHeight_m = trochanterHeight_m × (y_initial_mean − y_min) / y_initial_mean
+  //
+  // y_initial_mean: posición Y del trocánter cuando el atleta está DE PIE INMÓVIL.
+  //  · Preferimos los samples capturados ANTES del recording (durante el countdown
+  //    o la fase verde) → son verdaderamente de reposo.
+  //  · Si no los hay, usamos los primeros frames del recording que estén CERCA de
+  //    la mediana (descarta el 25 % más bajo, que ya está agachándose).
   const ys = samples.map(s => s.y);
-  const N0 = Math.min(30, Math.floor(ys.length * 0.20));   // ~30 primeros frames o 20% de la grabación
-  let yInitMean = 0;
-  for(let i=0;i<N0;i++) yInitMean += ys[i];
-  yInitMean /= N0;
+  const preSamples = (cmjCamState.preRecordHipSamples || []).map(s => s.y);
+  let yInitMean;
+  if(preSamples.length >= 8){
+    // Usamos los samples de reposo previos al recording → más fiables.
+    // Tomamos la mediana para descartar outliers (jitter de MediaPipe).
+    const sortedPre = [...preSamples].sort((a,b)=>a-b);
+    yInitMean = sortedPre[Math.floor(sortedPre.length/2)];
+  } else {
+    // Fallback: mediana del primer cuartil (los frames con MENOR Y dentro de los
+    // primeros 30) → corresponden a la posición DE PIE antes del agache, ya que
+    // al agacharse el trocánter baja en pantalla (Y crece hacia abajo).
+    const N0 = Math.min(30, Math.max(8, Math.floor(ys.length * 0.20)));
+    const firstWindow = ys.slice(0, N0).sort((a,b)=>a-b);
+    // Tomamos los primeros 50 % (los Y más bajos = posición más alta = de pie)
+    const half = Math.max(4, Math.floor(firstWindow.length * 0.5));
+    const top = firstWindow.slice(0, half);
+    yInitMean = top.reduce((a,b)=>a+b,0) / top.length;
+  }
   const yMin = Math.min(...ys);
 
   const trochM = cmjCamState.trochanterCm / 100;
-  // Si el atleta no se movió hacia arriba (yMin >= yInitMean), altura = 0
   const jumpM = Math.max(0, trochM * (yInitMean - yMin) / Math.max(1e-6, yInitMean));
   const jumpCmRaw = +(jumpM * 100).toFixed(1);
-
-  // CORRECCIÓN DE MEDICIÓN: el algoritmo del trocánter sobreestima ~5 cm respecto
-  // a otros métodos de referencia (calibrado empíricamente). Restamos 5 cm fijos.
-  const CMJ_BIAS_CORRECTION_CM = 5.0;
-  const jumpCm = Math.max(0, +(jumpCmRaw - CMJ_BIAS_CORRECTION_CM).toFixed(1));
+  // Sin corrección arbitraria (la antigua -5 cm sesgaba a la baja saltos pequeños).
+  const jumpCm = jumpCmRaw;
 
   // FPS estimado (para QC y reporte)
   let fps = 0;
@@ -10573,6 +10600,7 @@ function cmjStopRecord(){
     }
     if(nextIdx >= 0){
       cmjCamState.currentJump = nextIdx;
+      cmjCamState.preRecordHipSamples = [];   // reiniciar buffer de pre-record para el nuevo salto
       const next = document.getElementById(`cmjJump${nextIdx+1}`);
       if(next) next.classList.add('active');
       const btn = document.getElementById('cmjBtnRecord');
@@ -10611,6 +10639,7 @@ function cmjRepeatJump(jumpNum){
   const idx = jumpNum - 1;
   cmjCamState.jumps[idx] = null;
   cmjCamState.currentJump = idx;
+  cmjCamState.preRecordHipSamples = [];   // reiniciar buffer de reposo
   // Reset chip
   const chip = document.getElementById(`cmjJump${jumpNum}`);
   if(chip){
@@ -10650,8 +10679,7 @@ function cmjSaveResult(){
     jumps: cmjCamState.jumps.map(j => ({
       hCm: j.hCm, hCmRaw: j.hCmRaw, trochCm: j.trochCm, yInit: j.yInit, yMin: j.yMin, fps: j.fps
     })),
-    method: 'Trocánter (vitorbn1978) − corrección 5cm',
-    biasCorrectionCm: 5,
+    method: 'Trocánter (vitorbn1978)',
     trochanterCm: cmjCamState.trochanterCm
   });
   save();
