@@ -297,9 +297,11 @@
     .cmj-troch-row input:focus{border-color:var(--primary-l);background:rgba(139,115,64,.2)}
     .cmj-troch-help{background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);width:24px;height:24px;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;padding:0;transition:all .2s}
     .cmj-troch-help:hover{background:rgba(139,115,64,.25);color:#fff;border-color:var(--primary-l)}
-    .cmj-btn-rec{font-size:14px;padding:14px 28px;letter-spacing:1px;font-weight:600}
+    .cmj-btn-rec{font-size:14px;padding:14px 28px;letter-spacing:1px;font-weight:600;transition:all .25s}
     .cmj-btn-rec:disabled,.cmj-btn-rec[disabled]{opacity:.45;cursor:not-allowed;filter:grayscale(45%);box-shadow:none;animation:none;transform:none}
     .cmj-btn-rec:disabled:hover,.cmj-btn-rec[disabled]:hover{transform:none;box-shadow:none}
+    .cmj-btn-rec.ready:not(:disabled):not(.rec-on){background:linear-gradient(135deg,#16a34a 0%,#22c55e 100%);color:#fff;box-shadow:0 0 22px rgba(34,197,94,.55),0 4px 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.25);text-shadow:0 0 12px rgba(187,247,208,.95);animation:cmjReadyGlow 1.6s ease-in-out infinite}
+    @keyframes cmjReadyGlow{0%,100%{box-shadow:0 0 22px rgba(34,197,94,.55),0 4px 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.25)}50%{box-shadow:0 0 32px rgba(34,197,94,.85),0 4px 18px rgba(22,163,74,.6),inset 0 1px 0 rgba(255,255,255,.35)}}
     .cmj-btn-rec.rec-on{background:linear-gradient(135deg,#dc2626 0%,#ef4444 100%);box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3);animation:cmjRecPulse 1.2s ease-in-out infinite}
     @keyframes cmjRecPulse{0%,100%{box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3)}50%{box-shadow:0 0 30px rgba(220,38,38,.7),0 4px 16px rgba(220,38,38,.5)}}
     .cmj-phase-bar{display:flex;gap:3px;margin-bottom:6px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.8px;justify-content:center;flex-wrap:wrap}
@@ -1582,7 +1584,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v33</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v34</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10142,7 +10144,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v33 · CMJ — botón INICIAR se activa automáticamente cuando MediaPipe reconoce al sujeto (caderas + rodillas + tobillos visibles) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v34 · CMJ: botón INICIAR con feedback verde brillante al detectar al sujeto + corrección automática −5cm sobre el resultado final · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10481,6 +10483,7 @@ function cmjStartRecord(){
   // UI
   const btn = document.getElementById('cmjBtnRecord');
   if(btn){
+    btn.classList.remove('ready');     // quitar verde (durante grabación es rojo)
     btn.classList.add('rec-on');
     btn.innerHTML = `<i class="fas fa-stop"></i> PARAR salto ${cmjCamState.currentJump+1}`;
   }
@@ -10512,7 +10515,12 @@ function cmjStopRecord(){
   const trochM = cmjCamState.trochanterCm / 100;
   // Si el atleta no se movió hacia arriba (yMin >= yInitMean), altura = 0
   const jumpM = Math.max(0, trochM * (yInitMean - yMin) / Math.max(1e-6, yInitMean));
-  const jumpCm = +(jumpM * 100).toFixed(1);
+  const jumpCmRaw = +(jumpM * 100).toFixed(1);
+
+  // CORRECCIÓN DE MEDICIÓN: el algoritmo del trocánter sobreestima ~5 cm respecto
+  // a otros métodos de referencia (calibrado empíricamente). Restamos 5 cm fijos.
+  const CMJ_BIAS_CORRECTION_CM = 5.0;
+  const jumpCm = Math.max(0, +(jumpCmRaw - CMJ_BIAS_CORRECTION_CM).toFixed(1));
 
   // FPS estimado (para QC y reporte)
   let fps = 0;
@@ -10521,17 +10529,18 @@ function cmjStopRecord(){
     if(dt > 0) fps = Math.round(1000/dt);
   }
 
-  // Validación básica: salto razonable (3-100 cm)
-  if(jumpCm < 3 || jumpCm > 100){
-    setCMJStatus(`Salto fuera de rango (${jumpCm} cm) — repite manteniendo la cámara fija`, '');
+  // Validación básica: salto razonable (sobre el valor crudo, antes de la corrección)
+  if(jumpCmRaw < 3 || jumpCmRaw > 100){
+    setCMJStatus(`Salto fuera de rango (${jumpCmRaw} cm) — repite manteniendo la cámara fija`, '');
     const btn = document.getElementById('cmjBtnRecord');
     if(btn){ btn.classList.remove('rec-on'); btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle"></i> INICIAR salto ${cmjCamState.currentJump+1}`; }
     return;
   }
 
-  // Almacenar resultado del salto actual
+  // Almacenar resultado del salto actual (hCm = corregido; hCmRaw = sin corrección)
   cmjCamState.jumps[cmjCamState.currentJump] = {
     hCm: jumpCm,
+    hCmRaw: jumpCmRaw,
     trochCm: cmjCamState.trochanterCm,
     yInit: +yInitMean.toFixed(4),
     yMin: +yMin.toFixed(4),
@@ -10626,9 +10635,10 @@ function cmjSaveResult(){
   DB.cmj.push({
     id: uid(), athleteId: athId, date: TODAY, value: avg,
     jumps: cmjCamState.jumps.map(j => ({
-      hCm: j.hCm, trochCm: j.trochCm, yInit: j.yInit, yMin: j.yMin, fps: j.fps
+      hCm: j.hCm, hCmRaw: j.hCmRaw, trochCm: j.trochCm, yInit: j.yInit, yMin: j.yMin, fps: j.fps
     })),
-    method: 'Trocánter (vitorbn1978)',
+    method: 'Trocánter (vitorbn1978) − corrección 5cm',
+    biasCorrectionCm: 5,
     trochanterCm: cmjCamState.trochanterCm
   });
   save();
@@ -10659,12 +10669,18 @@ function cmjUpdateStartButtonReadiness(ready){
   if(ready){
     if(btn.disabled){
       btn.disabled = false;
+      btn.classList.add('ready');   // → letras verdes + glow animado
       setCMJStatus(`Sujeto detectado — pulsa INICIAR cuando vayas a saltar (salto ${cmjCamState.currentJump+1}/3)`, 'ready');
+    } else if(!btn.classList.contains('ready')){
+      btn.classList.add('ready');
     }
   } else {
     if(!btn.disabled){
       btn.disabled = true;
+      btn.classList.remove('ready');
       setCMJStatus('Esperando detección — sitúate de PERFIL completo frente a la cámara', '');
+    } else {
+      btn.classList.remove('ready');
     }
   }
 }
