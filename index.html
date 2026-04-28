@@ -304,6 +304,35 @@
     .cmj-btn-rec.ready:not(:disabled):not(.rec-on){background:linear-gradient(135deg,#16a34a 0%,#22c55e 100%);color:#fff;box-shadow:0 0 22px rgba(34,197,94,.55),0 4px 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.25);text-shadow:0 0 12px rgba(187,247,208,.95);animation:cmjReadyGlow 1.6s ease-in-out infinite}
     @keyframes cmjReadyGlow{0%,100%{box-shadow:0 0 22px rgba(34,197,94,.55),0 4px 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.25)}50%{box-shadow:0 0 32px rgba(34,197,94,.85),0 4px 18px rgba(22,163,74,.6),inset 0 1px 0 rgba(255,255,255,.35)}}
     .cmj-btn-rec.rec-on{background:linear-gradient(135deg,#dc2626 0%,#ef4444 100%);box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3);animation:cmjRecPulse 1.2s ease-in-out infinite}
+    /* CMJ MANUAL — Flight Time Method */
+    .cmj-man-wrap{position:fixed;inset:0;background:rgba(15,15,18,.97);overflow-y:auto;padding:16px;z-index:1100;display:flex;flex-direction:column;gap:12px}
+    .cmj-man-hdr{display:flex;align-items:center;justify-content:space-between;color:#fff;padding:4px 6px}
+    .cmj-man-hdr h2{font-family:var(--serif);font-size:18px;font-weight:400;letter-spacing:.5px;color:#fff}
+    .cmj-man-step{display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:14px;color:#fff}
+    .cmj-man-step.hidden{display:none}
+    .cmj-man-info{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.75);background:rgba(139,115,64,.12);border:1px solid rgba(139,115,64,.3);border-radius:6px;padding:10px 12px;line-height:1.5}
+    .cmj-man-info i{margin-right:6px;color:var(--primary-l)}
+    .cmj-man-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+    .cmj-man-time-row{display:flex;gap:14px;justify-content:space-between;align-items:center;color:#fff;font-family:var(--mono);font-size:13px;padding:4px 2px;flex-wrap:wrap}
+    .cmj-man-time-row b{color:#fbbf24;font-family:'DM Sans',var(--sans);font-weight:600}
+    .cmj-man-time-row input{padding:3px 6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:4px;color:#fff;font-family:'DM Sans',var(--sans);text-align:center}
+    .cmj-man-frame-controls{display:flex;gap:6px;justify-content:center;align-items:center}
+    .cmj-man-frame-controls .btn{padding:8px 14px;font-size:14px;min-width:38px}
+    .cmj-man-frame-controls .btn-ghost{color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.2)}
+    .cmj-man-frame-controls .btn-ghost:hover{background:rgba(255,255,255,.08)}
+    .cmj-man-events{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .cmj-man-marks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.75);text-align:center;padding:6px 0}
+    .cmj-man-marks .mark{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:2px}
+    .cmj-man-marks .mark-l{text-transform:uppercase;letter-spacing:.5px;font-size:9px;color:rgba(255,255,255,.55)}
+    .cmj-man-marks .mark b{color:#fbbf24;font-family:'DM Sans',var(--sans);font-weight:600;font-size:13px}
+    .cmj-man-result{background:linear-gradient(135deg,rgba(34,197,94,.18) 0%,rgba(34,197,94,.06) 100%);border:1px solid rgba(34,197,94,.45);border-radius:8px;padding:14px;text-align:center;box-shadow:0 0 22px rgba(34,197,94,.18)}
+    .cmj-man-result.hidden{display:none}
+    .cmj-man-result .rb-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(187,247,208,.85)}
+    .cmj-man-result .rb-val{font-family:var(--serif);font-size:42px;color:#fff;font-weight:300;margin:4px 0 2px;letter-spacing:1px}
+    .cmj-man-result .rb-formula{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.55)}
+    .cmj-man-capture{display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:14px}
+    .cmj-man-capture.hidden{display:none}
+    #cmjManScrub{accent-color:var(--primary-l)}
     @keyframes cmjRecPulse{0%,100%{box-shadow:0 0 20px rgba(220,38,38,.4),0 4px 12px rgba(220,38,38,.3)}50%{box-shadow:0 0 30px rgba(220,38,38,.7),0 4px 16px rgba(220,38,38,.5)}}
     .cmj-phase-bar{display:flex;gap:3px;margin-bottom:6px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.8px;justify-content:center;flex-wrap:wrap}
     .cmj-phase-dot{padding:3px 7px;border-radius:3px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.45);color:rgba(255,255,255,.4);transition:all .15s}
@@ -1585,7 +1614,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v36</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v37</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -1860,7 +1889,7 @@ function viewAthleteDetail(aid){
       </div>
       <div class="flex gap-8">
         <button class="btn btn-secondary" onclick="showSessionModal(${aid})"><i class="fas fa-plus"></i> Registrar Sesión</button>
-        <button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${aid},'coach')" title="Medir CMJ con cámara"><i class="fas fa-video"></i> Medir CMJ</button><button class="btn btn-ghost btn-sm" onclick="showCMJInfo()" title="Instrucciones CMJ" style="min-width:28px;padding:6px 8px;border:1px solid var(--border);border-radius:50%"><i class="fas fa-info" style="font-size:11px"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="showCMJManualModal(${aid},'coach')" title="Medir CMJ revisando el vídeo manualmente (Flight Time Method)"><i class="fas fa-stopwatch"></i> CMJ manual</button><button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${aid},'coach')" title="Medir CMJ automáticamente con MediaPipe (método del trocánter)"><i class="fas fa-video"></i> CMJ auto.</button><button class="btn btn-ghost btn-sm" onclick="showCMJInfo()" title="Instrucciones CMJ" style="min-width:28px;padding:6px 8px;border:1px solid var(--border);border-radius:50%"><i class="fas fa-info" style="font-size:11px"></i></button>
         <button class="btn btn-primary" onclick="generateAndSaveReport(${aid})"><i class="fas fa-file-alt"></i> Generar Informe</button>
       </div>
     </div>
@@ -6771,7 +6800,8 @@ function viewCheckin(){
             <input type="number" class="cmj-big" id="checkinCMJ" step="0.1" placeholder="0.0">
             <div style="font-size:12px;color:var(--muted);margin-top:8px">Baseline: ${ath.cmjBase} cm</div>
             <div class="flex gap-6 justify-center mt-8">
-              <button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${ath.id},'checkin')"><i class="fas fa-video"></i> Medir con Cámara (3 saltos)</button>
+              <button class="btn btn-secondary btn-sm" onclick="showCMJManualModal(${ath.id},'checkin')"><i class="fas fa-stopwatch"></i> CMJ manual</button>
+              <button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${ath.id},'checkin')"><i class="fas fa-video"></i> CMJ auto. (3 saltos)</button>
               <button class="btn btn-ghost btn-sm" onclick="showCMJInfo()" title="Instrucciones CMJ" style="min-width:28px;padding:6px 8px;border:1px solid var(--border);border-radius:50%"><i class="fas fa-info" style="font-size:11px"></i></button>
             </div>
           </div>
@@ -6981,7 +7011,7 @@ function viewAthWorkouts(){
       <div><div class="pg-title">Mis Entrenamientos</div><div class="pg-sub">Semana ${currentWeek} · ${cw?getMicroTypeName(cw.type):'—'}</div></div>
       <div class="flex gap-8">
         <button class="btn btn-primary btn-sm" onclick="showAthSessionModal(${ath.id})"><i class="fas fa-plus"></i> Registrar Entrenamiento</button>
-        <button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${ath.id},'athlete')" title="Medir CMJ con cámara"><i class="fas fa-video"></i> Medir CMJ</button><button class="btn btn-ghost btn-sm" onclick="showCMJInfo()" title="Instrucciones CMJ" style="min-width:28px;padding:6px 8px;border:1px solid var(--border);border-radius:50%"><i class="fas fa-info" style="font-size:11px"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="showCMJManualModal(${ath.id},'athlete')" title="Medir CMJ revisando el vídeo manualmente (Flight Time Method)"><i class="fas fa-stopwatch"></i> CMJ manual</button><button class="btn btn-warning btn-sm" onclick="showCMJCameraModal(${ath.id},'athlete')" title="Medir CMJ automáticamente con MediaPipe"><i class="fas fa-video"></i> CMJ auto.</button><button class="btn btn-ghost btn-sm" onclick="showCMJInfo()" title="Instrucciones CMJ" style="min-width:28px;padding:6px 8px;border:1px solid var(--border);border-radius:50%"><i class="fas fa-info" style="font-size:11px"></i></button>
       </div>
     </div>
     <div class="pg-body">
@@ -10145,7 +10175,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v36 · CMJ: arreglado bug 13.7cm → pre-buffer de reposo + sin corrección arbitraria + auto-stop 10s · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v37 · CMJ doble método: "CMJ auto" (MediaPipe en vivo) + "CMJ manual" (Flight Time Method de Bosco con jog dial frame a frame, h=1.22625·t²) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
@@ -10793,6 +10823,360 @@ function closeCMJCamera(){
     cmjCamState = null;
   }
   const overlay = document.getElementById('cmjCamOverlay');
+  if(overlay) overlay.remove();
+}
+
+// =====================================================================
+// ===== CMJ MANUAL — Flight Time Method (h = 1.22625 × t²) ============
+// =====================================================================
+// Implementación basada en el método del Tiempo de Vuelo (Bosco) usado por
+// "My Jump Lab" y validado vs. plataforma de fuerza dual:
+//   r ≥ 0.97, sesgo ≈ 0.001 m, ICC inter-evaluador > 0.90.
+//
+//   h = (g · t²) / 8 = 1.22625 · t²    (con g = 9.81 m/s²)
+//
+// FLUJO:
+//   1) El usuario sube/graba un vídeo del salto en cámara lenta (idealmente 120-240 fps).
+//   2) Se reproduce el vídeo y el usuario navega frame a frame con un jog-dial.
+//   3) Marca el frame de DESPEGUE (último contacto del pie con el suelo).
+//   4) Marca el frame de ATERRIZAJE (primer contacto del pie con el suelo).
+//   5) La app calcula t = (frameLand − frameTake) / fps_real y h con la fórmula.
+//   6) Se guarda en DB.cmj con method='Tiempo de vuelo (manual)'.
+
+let cmjManState = null;
+
+function showCMJManualModal(athleteId, context){
+  const ath = getAthleteById(athleteId);
+  if(!ath){ toast('Atleta no encontrado','error'); return; }
+
+  cmjManState = {
+    athleteId,
+    context,
+    athName: ath.name,
+    videoUrl: null,
+    videoBlob: null,
+    fps: 30,                  // se actualiza con metadatos cuando se cargue el vídeo
+    duration: 0,
+    takeOffTime: null,        // segundos en el vídeo
+    landingTime: null,
+    flightMs: null,
+    hCm: null,
+    fpsManual: false,         // si el usuario sobrescribe el fps
+    // Para grabación dentro de la app
+    recording: false,
+    recorder: null,
+    chunks: [],
+    stream: null
+  };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'cmjManOverlay';
+  overlay.className = 'cmj-cam-ov';
+  overlay.innerHTML = `
+    <div class="cmj-man-wrap">
+      <div class="cmj-man-hdr">
+        <h2><i class="fas fa-stopwatch" style="margin-right:8px;color:var(--primary-l)"></i>CMJ manual — ${ath.name}</h2>
+        <button class="cmj-cam-close" onclick="closeCMJManual()"><i class="fas fa-times"></i></button>
+      </div>
+
+      <!-- PASO 1: Selección de video -->
+      <div class="cmj-man-step" id="cmjManStep1">
+        <div class="cmj-man-info"><i class="fas fa-info-circle"></i> Para máxima precisión usa cámara lenta (120 o 240 fps). Coloca la cámara a 3 m de distancia y a la altura de la cadera.</div>
+        <div class="cmj-man-actions">
+          <label class="btn btn-primary" style="cursor:pointer">
+            <i class="fas fa-upload"></i> Subir vídeo del salto
+            <input type="file" id="cmjManFile" accept="video/*" style="display:none" onchange="cmjManLoadFile(event)">
+          </label>
+          <button class="btn btn-secondary" onclick="cmjManStartCapture()"><i class="fas fa-video"></i> Grabar con la cámara</button>
+        </div>
+      </div>
+
+      <!-- PASO 2: Reproductor + jog -->
+      <div class="cmj-man-step hidden" id="cmjManStep2">
+        <video id="cmjManVideo" playsinline preload="auto" style="width:100%;max-height:50vh;background:#000"></video>
+        <div class="cmj-man-time-row">
+          <div>Tiempo: <b id="cmjManTime">0.000 s</b></div>
+          <div>Frame: <b id="cmjManFrame">0</b></div>
+          <div>FPS: <input type="number" id="cmjManFps" min="24" max="960" step="1" value="30" onchange="cmjManSetFps(this.value)" style="width:54px"></div>
+        </div>
+        <input type="range" id="cmjManScrub" min="0" max="1" step="0.0001" value="0" oninput="cmjManScrub(this.value)" style="width:100%">
+        <div class="cmj-man-frame-controls">
+          <button class="btn btn-ghost" onclick="cmjManStepFrame(-10)" title="-10 frames">«</button>
+          <button class="btn btn-ghost" onclick="cmjManStepFrame(-1)" title="-1 frame">‹</button>
+          <button class="btn btn-secondary" id="cmjManPlay" onclick="cmjManPlayPause()"><i class="fas fa-play"></i></button>
+          <button class="btn btn-ghost" onclick="cmjManStepFrame(1)" title="+1 frame">›</button>
+          <button class="btn btn-ghost" onclick="cmjManStepFrame(10)" title="+10 frames">»</button>
+        </div>
+        <div class="cmj-man-events">
+          <button class="btn btn-warning" id="cmjManMarkTake" onclick="cmjManMarkTakeOff()"><i class="fas fa-arrow-up"></i> Marcar DESPEGUE</button>
+          <button class="btn btn-success" id="cmjManMarkLand" onclick="cmjManMarkLanding()"><i class="fas fa-arrow-down"></i> Marcar ATERRIZAJE</button>
+        </div>
+        <div class="cmj-man-marks">
+          <div class="mark"><span class="mark-l">Despegue</span><b id="cmjManTakeT">—</b></div>
+          <div class="mark"><span class="mark-l">Aterrizaje</span><b id="cmjManLandT">—</b></div>
+          <div class="mark"><span class="mark-l">Vuelo</span><b id="cmjManFlightT">—</b></div>
+        </div>
+        <div class="cmj-man-result hidden" id="cmjManResultBox">
+          <div class="rb-label">Altura del salto</div>
+          <div class="rb-val" id="cmjManResultVal">— cm</div>
+          <div class="rb-formula">h = 1.22625 × t² (Bosco)</div>
+        </div>
+        <div class="cmj-man-actions">
+          <button class="btn btn-primary hidden" id="cmjManSave" onclick="cmjManSave()"><i class="fas fa-check"></i> Guardar</button>
+          <button class="btn btn-secondary" onclick="cmjManReset()"><i class="fas fa-redo"></i> Otro vídeo</button>
+          <button class="btn btn-ghost" onclick="closeCMJManual()" style="color:#fff"><i class="fas fa-times"></i> Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Captura desde cámara (overlay) -->
+      <div class="cmj-man-capture hidden" id="cmjManCaptureBox">
+        <video id="cmjManCapVideo" playsinline autoplay muted style="width:100%;max-height:60vh;background:#000"></video>
+        <div class="cmj-man-actions">
+          <button class="btn btn-primary cmj-btn-rec" id="cmjManCapBtn" onclick="cmjManToggleCapture()"><i class="fas fa-circle"></i> INICIAR grabación</button>
+          <button class="btn btn-ghost" onclick="cmjManCancelCapture()" style="color:#fff"><i class="fas fa-times"></i> Cancelar</button>
+        </div>
+        <div class="cmj-man-info" style="margin-top:6px"><i class="fas fa-info-circle"></i> El móvil usa la velocidad nativa de la cámara web. Para 120/240 fps reales usa la app de cámara del móvil y luego sube el vídeo.</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// ----- Carga de vídeo desde fichero -----
+function cmjManLoadFile(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file){ return; }
+  if(cmjManState.videoUrl){ try{ URL.revokeObjectURL(cmjManState.videoUrl); }catch(e){} }
+  cmjManState.videoBlob = file;
+  cmjManState.videoUrl = URL.createObjectURL(file);
+  cmjManShowVideo(cmjManState.videoUrl);
+}
+
+function cmjManShowVideo(url){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  v.src = url;
+  v.onloadedmetadata = () => {
+    cmjManState.duration = v.duration || 0;
+    // FPS: el navegador no expone fps de forma fiable; lo dejamos editable.
+    // Por defecto 30, pero si el vídeo es muy corto sugerimos pedir al usuario.
+    cmjManState.fps = 30;
+    document.getElementById('cmjManFps').value = 30;
+    cmjManUpdateTimeDisplay();
+  };
+  v.ontimeupdate = () => cmjManUpdateTimeDisplay();
+  document.getElementById('cmjManStep1').classList.add('hidden');
+  document.getElementById('cmjManStep2').classList.remove('hidden');
+}
+
+function cmjManUpdateTimeDisplay(){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  const t = v.currentTime;
+  const fps = cmjManState.fps;
+  const frame = Math.round(t * fps);
+  const tEl = document.getElementById('cmjManTime');
+  const fEl = document.getElementById('cmjManFrame');
+  if(tEl) tEl.textContent = t.toFixed(3) + ' s';
+  if(fEl) fEl.textContent = frame;
+  const sc = document.getElementById('cmjManScrub');
+  if(sc && cmjManState.duration > 0){
+    sc.max = cmjManState.duration;
+    sc.value = t;
+  }
+}
+
+function cmjManScrub(val){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  v.currentTime = parseFloat(val) || 0;
+}
+
+function cmjManStepFrame(n){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  v.pause();
+  document.getElementById('cmjManPlay').innerHTML = '<i class="fas fa-play"></i>';
+  const fps = cmjManState.fps || 30;
+  const dt = n / fps;
+  let nt = v.currentTime + dt;
+  nt = Math.max(0, Math.min(cmjManState.duration, nt));
+  v.currentTime = nt;
+}
+
+function cmjManPlayPause(){
+  const v = document.getElementById('cmjManVideo');
+  const btn = document.getElementById('cmjManPlay');
+  if(!v) return;
+  if(v.paused){
+    v.play();
+    btn.innerHTML = '<i class="fas fa-pause"></i>';
+  } else {
+    v.pause();
+    btn.innerHTML = '<i class="fas fa-play"></i>';
+  }
+}
+
+function cmjManSetFps(val){
+  const f = parseFloat(val);
+  if(!f || f < 24 || f > 960){ toast('FPS fuera de rango (24-960)','warn'); return; }
+  cmjManState.fps = f;
+  cmjManState.fpsManual = true;
+  cmjManUpdateTimeDisplay();
+  cmjManRecalc();
+}
+
+function cmjManMarkTakeOff(){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  cmjManState.takeOffTime = v.currentTime;
+  document.getElementById('cmjManTakeT').textContent = v.currentTime.toFixed(3) + ' s';
+  cmjManRecalc();
+}
+
+function cmjManMarkLanding(){
+  const v = document.getElementById('cmjManVideo');
+  if(!v) return;
+  cmjManState.landingTime = v.currentTime;
+  document.getElementById('cmjManLandT').textContent = v.currentTime.toFixed(3) + ' s';
+  cmjManRecalc();
+}
+
+function cmjManRecalc(){
+  if(cmjManState.takeOffTime == null || cmjManState.landingTime == null) return;
+  const t = cmjManState.landingTime - cmjManState.takeOffTime;
+  if(t <= 0){
+    document.getElementById('cmjManFlightT').textContent = '— (orden inválido)';
+    document.getElementById('cmjManResultBox').classList.add('hidden');
+    document.getElementById('cmjManSave').classList.add('hidden');
+    return;
+  }
+  cmjManState.flightMs = t * 1000;
+  // h = 1.22625 × t² (m); ×100 a cm
+  const hM = 1.22625 * t * t;
+  cmjManState.hCm = +(hM * 100).toFixed(1);
+  document.getElementById('cmjManFlightT').textContent = (t*1000).toFixed(0) + ' ms';
+  document.getElementById('cmjManResultVal').textContent = cmjManState.hCm.toFixed(1) + ' cm';
+  document.getElementById('cmjManResultBox').classList.remove('hidden');
+  // Solo permitir guardar si el resultado es razonable (3-100 cm)
+  if(cmjManState.hCm >= 3 && cmjManState.hCm <= 100){
+    document.getElementById('cmjManSave').classList.remove('hidden');
+  } else {
+    document.getElementById('cmjManSave').classList.add('hidden');
+  }
+}
+
+function cmjManSave(){
+  if(cmjManState.hCm == null) return;
+  const athId = cmjManState.athleteId;
+  DB.cmj.push({
+    id: uid(), athleteId: athId, date: TODAY, value: cmjManState.hCm,
+    jumps: [{
+      hCm: cmjManState.hCm,
+      flightMs: +cmjManState.flightMs.toFixed(0),
+      takeOffTime: +cmjManState.takeOffTime.toFixed(4),
+      landingTime: +cmjManState.landingTime.toFixed(4),
+      fpsAssumed: cmjManState.fps
+    }],
+    method: 'Tiempo de vuelo (manual · Bosco)'
+  });
+  save();
+  const checkinInput = document.getElementById('checkinCMJ');
+  if(checkinInput) checkinInput.value = cmjManState.hCm;
+  toast(`CMJ manual: ${cmjManState.hCm.toFixed(1)} cm (vuelo ${cmjManState.flightMs.toFixed(0)} ms)`);
+  closeCMJManual();
+  if(typeof render === 'function') render();
+}
+
+function cmjManReset(){
+  cmjManState.takeOffTime = null;
+  cmjManState.landingTime = null;
+  cmjManState.flightMs = null;
+  cmjManState.hCm = null;
+  if(cmjManState.videoUrl){ try{ URL.revokeObjectURL(cmjManState.videoUrl); }catch(e){} cmjManState.videoUrl = null; }
+  document.getElementById('cmjManTakeT').textContent = '—';
+  document.getElementById('cmjManLandT').textContent = '—';
+  document.getElementById('cmjManFlightT').textContent = '—';
+  document.getElementById('cmjManResultBox').classList.add('hidden');
+  document.getElementById('cmjManSave').classList.add('hidden');
+  document.getElementById('cmjManStep1').classList.remove('hidden');
+  document.getElementById('cmjManStep2').classList.add('hidden');
+  const fileInp = document.getElementById('cmjManFile'); if(fileInp) fileInp.value = '';
+}
+
+// ----- Captura de vídeo con la cámara web (fallback) -----
+async function cmjManStartCapture(){
+  document.getElementById('cmjManStep1').classList.add('hidden');
+  document.getElementById('cmjManCaptureBox').classList.remove('hidden');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, min: 30 } },
+      audio: false
+    });
+    cmjManState.stream = stream;
+    const v = document.getElementById('cmjManCapVideo');
+    v.srcObject = stream;
+    await v.play();
+  }catch(e){
+    toast('No se pudo acceder a la cámara — usa la opción de subir vídeo','error');
+    cmjManCancelCapture();
+  }
+}
+
+function cmjManCancelCapture(){
+  if(cmjManState && cmjManState.stream){
+    cmjManState.stream.getTracks().forEach(t => t.stop());
+    cmjManState.stream = null;
+  }
+  if(cmjManState && cmjManState.recording && cmjManState.recorder){
+    try{ cmjManState.recorder.stop(); }catch(e){}
+  }
+  document.getElementById('cmjManCaptureBox').classList.add('hidden');
+  document.getElementById('cmjManStep1').classList.remove('hidden');
+}
+
+function cmjManToggleCapture(){
+  if(!cmjManState) return;
+  if(cmjManState.recording){
+    // Parar
+    try{ cmjManState.recorder.stop(); }catch(e){}
+  } else {
+    // Iniciar
+    if(!cmjManState.stream){ toast('Cámara no disponible','error'); return; }
+    cmjManState.chunks = [];
+    let mimeType = 'video/webm;codecs=vp8';
+    try{
+      if(MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) mimeType = 'video/webm;codecs=vp9';
+      else if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+    }catch(e){ mimeType = ''; }
+    const rec = new MediaRecorder(cmjManState.stream, mimeType ? { mimeType } : {});
+    rec.ondataavailable = e => { if(e.data && e.data.size > 0) cmjManState.chunks.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(cmjManState.chunks, { type: mimeType || 'video/webm' });
+      cmjManState.videoBlob = blob;
+      const url = URL.createObjectURL(blob);
+      cmjManState.videoUrl = url;
+      // Cerrar stream y panel de captura
+      if(cmjManState.stream){ cmjManState.stream.getTracks().forEach(t => t.stop()); cmjManState.stream = null; }
+      document.getElementById('cmjManCaptureBox').classList.add('hidden');
+      cmjManShowVideo(url);
+    };
+    cmjManState.recorder = rec;
+    cmjManState.recording = true;
+    rec.start();
+    const btn = document.getElementById('cmjManCapBtn');
+    if(btn){ btn.classList.add('rec-on'); btn.innerHTML = '<i class="fas fa-stop"></i> PARAR'; }
+  }
+}
+
+function closeCMJManual(){
+  if(cmjManState){
+    if(cmjManState.stream){ cmjManState.stream.getTracks().forEach(t => t.stop()); }
+    if(cmjManState.recording && cmjManState.recorder){ try{ cmjManState.recorder.stop(); }catch(e){} }
+    if(cmjManState.videoUrl){ try{ URL.revokeObjectURL(cmjManState.videoUrl); }catch(e){} }
+    cmjManState = null;
+  }
+  const overlay = document.getElementById('cmjManOverlay');
   if(overlay) overlay.remove();
 }
 
