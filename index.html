@@ -1075,6 +1075,77 @@ function seed(){
     };
   });
 
+  // ===== SESSIONS REALES — 4 microciclos (28 días) por atleta =====
+  // Volumen / intensidad / RPE acordes al código del microciclo:
+  //   G  = Generalización  → vol 70-95,   int 50-65 %, RPE 5-6
+  //   C  = Carga           → vol 95-130,  int 65-80 %, RPE 6-7
+  //   CH = Choque          → vol 125-160, int 75-90 %, RPE 8-9
+  //   R  = Recuperación    → vol 50-75,   int 50-65 %, RPE 4-5
+  // 5 sesiones por semana (Lun-Vie). El plan empieza hace 28 días.
+  const microRanges = {
+    'G':  { vol:[70,95],   int:[50,65], rpe:[5,6], type:'fuerza',      micro:'corriente' },
+    'C':  { vol:[95,130],  int:[65,80], rpe:[6,7], type:'hipertrofia', micro:'corriente' },
+    'CH': { vol:[125,160], int:[75,90], rpe:[8,9], type:'fuerza',      micro:'choque' },
+    'R':  { vol:[50,75],   int:[50,65], rpe:[4,5], type:'tecnica',     micro:'restablecimiento' }
+  };
+  const _rng = (a,b) => +(a + Math.random()*(b-a)).toFixed(1);
+  const _rngI = (a,b) => Math.round(a + Math.random()*(b-a));
+
+  DB.athletes.forEach(a => {
+    const sd = a.studyData || {};
+    const codes = (sd.mesoDistribution||'').split('-').filter(Boolean);
+    if(!codes.length) return;   // Sujeto-06 (APRE) no tiene mesociclo formal -> sin sessions
+    // Plan = 28 días empezando hace 28 días (= 4 semanas terminando hoy)
+    codes.forEach((code, weekIdx) => {
+      const r = microRanges[code]; if(!r) return;
+      // Lun..Vie de esta semana del plan
+      // semana 0 = días 21-27 atrás, semana 1 = 14-20, semana 2 = 7-13, semana 3 = 0-6
+      const weekStartAgo = (3 - weekIdx) * 7 + 6;   // Lun de la semana
+      for(let d=0; d<5; d++){
+        const dayOff = weekStartAgo - d;
+        if(dayOff < 0) continue;
+        const date = daysAgo(dayOff);
+        const vol = _rngI(r.vol[0], r.vol[1]);
+        const int = _rngI(r.int[0], r.int[1]);
+        const rpe = _rngI(r.rpe[0], r.rpe[1]);
+        // Carga externa simple = (vol × int% × rpe/10) / 10
+        const extLoad = +(vol * (int/100) * (rpe/10) / 10).toFixed(1);
+        DB.sessions.push({
+          id: uid(), athleteId: a.id, date,
+          type: r.type, microType: r.micro,
+          volume: vol, intensity: int, extLoad, rpe,
+          notes: ''
+        });
+      }
+    });
+  });
+
+  // ===== CMJ — solo Sujetos 01, 04, 05, 06 (no 02 ni 03) =====
+  // 1 medición por semana (4 mediciones a lo largo del macrociclo).
+  // Trayectorias realistas según el tipo de mesociclo:
+  //   S-01 (Introductorio)        : mejora ligera  32 → 33.5
+  //   S-04 (Básico Prep. General) : mejora moderada 36 → 38.2
+  //   S-05 (Básico Prep. Espec.)  : descenso por choque y recuperación 38 → 39
+  //   S-06 (APRE)                 : mejora notable 35 → 38
+  const cmjTrajectories = {
+    1: [32.0, 32.5, 33.0, 33.5],   // S-01
+    4: [36.0, 36.8, 37.5, 38.2],   // S-04
+    5: [38.0, 37.5, 37.0, 39.0],   // S-05 (recuperación tras 2 semanas de choque)
+    6: [35.0, 36.0, 37.0, 38.0]    // S-06
+  };
+  Object.entries(cmjTrajectories).forEach(([aidStr, vals]) => {
+    const aid = +aidStr;
+    vals.forEach((v, weekIdx) => {
+      // Medición el miércoles de cada semana
+      const dayOff = (3 - weekIdx) * 7 + 4;     // Mié de cada semana del plan
+      if(dayOff < 0) return;
+      DB.cmj.push({
+        id: uid(), athleteId: aid, date: daysAgo(dayOff),
+        value: v
+      });
+    });
+  });
+
   save();
 }
 
@@ -1694,7 +1765,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v39</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v40</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -2014,6 +2085,61 @@ function viewAthleteDetail(aid){
           '</div>';
         })()}
       </div>
+
+      <!-- Información del Estudio TFG (Tabla 1) — solo si el atleta tiene studyData -->
+      ${a.studyData ? `
+      <div class="card mb-24" style="border-color:rgba(91,79,138,.25);background:linear-gradient(135deg,rgba(91,79,138,.04) 0%,rgba(255,255,255,0) 100%)">
+        <div class="card-title" style="color:var(--accent)">
+          <i class="fas fa-flask" style="margin-right:6px"></i>Información del Estudio TFG
+          <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:var(--mono);margin-left:6px">· ${a.studyData.subjectId}</span>
+        </div>
+        <div class="grid-3" style="gap:14px">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">01 · Objetivos</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4">${(a.goals||[]).join(', ') || '—'}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">02 · Distribución semanal</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4">${a.studyData.weeklyDistribution || '—'}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">03 · Tipo de mesociclo</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4">${a.studyData.mesocycleType || '—'}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">04 · Objetivo del bloque</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4">${a.studyData.blockObjective || '—'}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">05 · Distribución del mesociclo</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4;font-family:var(--mono);letter-spacing:1px">${a.studyData.mesoDistribution || '—'}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">06 · Tests de evaluación</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.4">${(a.studyData.evaluationTests||[]).join(' · ') || '—'}</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(91,79,138,.15)">
+          <div class="grid-3" style="gap:14px">
+            <div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Resultado del test</div>
+              <div style="font-size:13px;color:var(--ok);font-weight:600;line-height:1.4">${a.studyData.testResults || '—'}</div>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Cambio en el peso</div>
+              <div style="font-size:13px;font-weight:600;line-height:1.4;color:${(a.studyData.weightChange||0)<0?'var(--ok)':(a.studyData.weightChange||0)>0?'var(--accent)':'var(--muted)'}">
+                ${a.studyData.initialWeight} → ${a.studyData.finalWeight} kg
+                <span style="font-size:11px;color:var(--muted);margin-left:6px">(${(a.studyData.weightChange||0)>0?'+':''}${a.studyData.weightChange} kg)</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Cambio IMC</div>
+              <div style="font-size:13px;font-weight:600;line-height:1.4;color:${(a.studyData.imcChange||0)<0?'var(--ok)':'var(--accent)'}">${(a.studyData.imcChange||0)>0?'+':''}${a.studyData.imcChange}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
 
       <!-- Charts row -->
       <div class="grid-3 mb-24">
@@ -10255,7 +10381,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v39 · Datos limpiados — solo se mantienen los datos reales del estudio (mesociclos exactos según tabla TFG + 8 wellness reales del Sujeto-03) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v40 · Panel "Información del Estudio TFG" en cada atleta + sessions reales (4 microciclos según G/C/CH/R) + CMJ solo para Sujetos 01, 04, 05, 06 · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
