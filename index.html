@@ -817,30 +817,141 @@ function seed(){
     {id:1, name:'Julián Orejas', email:'coach1@fatiga.es', pass:'coach123', type:'coach'},
     {id:2, name:'El Toro',       email:'coach2@fatiga.es', pass:'coach123', type:'coach'},
     {id:3, name:'Tercero',       email:'coach3@fatiga.es', pass:'coach123', type:'coach'},
-    {id:4, name:'Carlos Martínez', email:'carlos@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
-    {id:5, name:'Ana García',      email:'ana@fatiga.es',    pass:'atleta123', type:'athlete', athleteId:2},
-    {id:6, name:'Diego López',     email:'diego@fatiga.es',  pass:'atleta123', type:'athlete', athleteId:3}
+    // 6 sujetos del TFG (Tabla 1 — Resumen de los participantes incluidos en el estudio)
+    {id:4, name:'Sujeto-01', email:'sujeto01@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
+    {id:5, name:'Sujeto-02', email:'sujeto02@fatiga.es', pass:'atleta123', type:'athlete', athleteId:2},
+    {id:6, name:'Sujeto-03', email:'sujeto03@fatiga.es', pass:'atleta123', type:'athlete', athleteId:3},
+    {id:7, name:'Sujeto-04', email:'sujeto04@fatiga.es', pass:'atleta123', type:'athlete', athleteId:4},
+    {id:8, name:'Sujeto-05', email:'sujeto05@fatiga.es', pass:'atleta123', type:'athlete', athleteId:5},
+    {id:9, name:'Sujeto-06', email:'sujeto06@fatiga.es', pass:'atleta123', type:'athlete', athleteId:6}
   ];
   // Fechas de competición ancladas al año actual para que los picks caigan en meses reales
   const _thisYear = new Date().getFullYear();
   const _compDate = (m, d) => `${_thisYear}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  // 6 sujetos del TFG, todos bajo el coach Julián Orejas (id:1)
+  // Datos extraídos de la Tabla 1 del estudio
   DB.athletes = [
-    {id:1, userId:4, name:'Carlos Martínez', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',     age:24, weight:82, height:180, cmjBase:42, coachId:1, photo:'CM',
-     level:'Avanzado',   goals:['Fuerza máxima','Hipertrofia','Potencia'],
-     competitionDates:[_compDate(6,14), _compDate(10,25)], competitionType:'Campeonato nacional'},
-    {id:2, userId:5, name:'Ana García',      sport:'Powerlifting',            sportCategory:'Fuerza',     age:22, weight:62, height:165, cmjBase:35, coachId:2, photo:'AG',
-     level:'Intermedio', goals:['Fuerza máxima','Potencia','Técnica'],
-     competitionDates:[_compDate(5,10), _compDate(9,20)], competitionType:'Campeonato nacional'},
-    {id:3, userId:6, name:'Diego López',     sport:'CrossFit',                sportCategory:'Funcional',  age:28, weight:78, height:175, cmjBase:48, coachId:3, photo:'DL',
-     level:'Elite',      goals:['Potencia','Resistencia anaeróbica','Hipertrofia'],
-     competitionDates:[_compDate(4,12), _compDate(7,18), _compDate(11,8)], competitionType:'Torneo puntual'}
+    // Sujeto-01: Ganancia de fuerza y pérdida de grasa · Full-body · Introductorio · G-C-C-R
+    //  Test: flexiones+plancha · +3 flex y +21 s plancha · IMC -5% · 69 → 66.3 kg (perdió 2.7)
+    {id:1, userId:4, name:'Sujeto-01', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:25, weight:69, height:175, cmjBase:32, coachId:1, photo:'S1',
+     level:'Principiante', goals:['Fuerza máxima','Pérdida de grasa','Hipertrofia'],
+     competitionDates:[], competitionType:'',
+     // Datos específicos del estudio
+     studyData:{ subjectId:'S-01',
+       weeklyDistribution:'Full-body',
+       mesocycleType:'Introductorio',
+       blockObjective:'Acondicionamiento general',
+       mesoDistribution:'G-C-C-R',
+       evaluationTests:['Flexiones','Plancha abdominal'],
+       testResults:'+3 flexiones y +21 s plancha',
+       imcChange:-5.0,
+       initialWeight:69,
+       finalWeight:66.3,
+       weightChange:-2.7 }},
+    // Sujeto-02: Ganancia de fuerza y pérdida de grasa · Full-body · Introductorio · G-C-C-R
+    //  Test: flexiones+plancha · +3 flex y +21 s plancha · IMC -5% · 66.55 → 65.35 kg (perdió 1.2)
+    {id:2, userId:5, name:'Sujeto-02', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:26, weight:66.55, height:172, cmjBase:30, coachId:1, photo:'S2',
+     level:'Principiante', goals:['Fuerza máxima','Pérdida de grasa','Hipertrofia'],
+     competitionDates:[], competitionType:'',
+     studyData:{ subjectId:'S-02',
+       weeklyDistribution:'Full-body',
+       mesocycleType:'Introductorio',
+       blockObjective:'Acondicionamiento general',
+       mesoDistribution:'G-C-C-R',
+       evaluationTests:['Flexiones','Plancha abdominal'],
+       testResults:'+3 flexiones y +21 s plancha',
+       imcChange:-5.0,
+       initialWeight:66.55,
+       finalWeight:65.35,
+       weightChange:-1.2 }},
+    // Sujeto-03: Aumentar fuerza e hipertrofia · Full-body · Básico Prep. General · G-C-C-R
+    //  Test: Chair Stand Test 1 min · +5 levantamientos · IMC -2.5% · 63.4 → 62.4 kg (perdió 1)
+    {id:3, userId:6, name:'Sujeto-03', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:27, weight:63.4, height:170, cmjBase:34, coachId:1, photo:'S3',
+     level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
+     competitionDates:[], competitionType:'',
+     studyData:{ subjectId:'S-03',
+       weeklyDistribution:'Full-body',
+       mesocycleType:'Básico de Preparación General',
+       blockObjective:'Capacidad aeróbica y resistencia a la fuerza',
+       mesoDistribution:'G-C-C-R',
+       evaluationTests:['Chair Stand Test (1 min)'],
+       testResults:'+5 levantamientos',
+       imcChange:-2.5,
+       initialWeight:63.4,
+       finalWeight:62.4,
+       weightChange:-1.0 }},
+    // Sujeto-04: Aumentar fuerza e hipertrofia · Rutina dividida · Básico Prep. General · C-CH-C-R
+    //  Test: Dominadas + Press banca · +5 kg banca y +2 dominadas · IMC -5% · 64 → 66 kg (ganó 2)
+    {id:4, userId:7, name:'Sujeto-04', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:25, weight:64, height:170, cmjBase:36, coachId:1, photo:'S4',
+     level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
+     competitionDates:[], competitionType:'',
+     studyData:{ subjectId:'S-04',
+       weeklyDistribution:'Rutina dividida',
+       mesocycleType:'Básico de Preparación General',
+       blockObjective:'Capacidad aeróbica y resistencia a la fuerza',
+       mesoDistribution:'C-CH-C-R',
+       evaluationTests:['Dominadas','Press banca · PR'],
+       testResults:'+5 kg en banca y +2 dominadas',
+       imcChange:-5.0,
+       initialWeight:64,
+       finalWeight:66,
+       weightChange:+2.0 }},
+    // Sujeto-05: Aumentar fuerza y potencia · Rutina dividida · Básico Prep. Específica · C-CH-CH-R
+    //  Test: Dominadas + Press banca · igual banca y +2 dominadas · IMC -5% · 100.3 → 98.9 kg (perdió 1.4)
+    {id:5, userId:8, name:'Sujeto-05', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:30, weight:100.3, height:185, cmjBase:38, coachId:1, photo:'S5',
+     level:'Avanzado', goals:['Fuerza máxima','Potencia'],
+     competitionDates:[], competitionType:'',
+     studyData:{ subjectId:'S-05',
+       weeklyDistribution:'Rutina dividida',
+       mesocycleType:'Básico de Preparación Específica',
+       blockObjective:'Fuerza máxima y potencia aeróbica',
+       mesoDistribution:'C-CH-CH-R',
+       evaluationTests:['Dominadas','Press banca · PR'],
+       testResults:'Igual en banca y +2 dominadas',
+       imcChange:-5.0,
+       initialWeight:100.3,
+       finalWeight:98.9,
+       weightChange:-1.4 }},
+    // Sujeto-06: Aumentar PR banca y dominadas · Validar calculadora APRE
+    //  Test: Dominadas + Press banca · +7.5 kg banca y +3 dominadas · IMC -2.5% · 71 → 64 kg (perdió 7)
+    {id:6, userId:9, name:'Sujeto-06', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:28, weight:71, height:178, cmjBase:35, coachId:1, photo:'S6',
+     level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
+     competitionDates:[], competitionType:'',
+     studyData:{ subjectId:'S-06',
+       weeklyDistribution:'Validar calculadora APRE',
+       mesocycleType:'—',
+       blockObjective:'—',
+       mesoDistribution:'—',
+       evaluationTests:['Dominadas','Press banca · PR'],
+       testResults:'+7.5 kg en banca y +3 dominadas',
+       imcChange:-2.5,
+       initialWeight:71,
+       finalWeight:64,
+       weightChange:-7.0 }}
   ];
 
-  // Generate 8 weeks of training data
+  // Generate 8 weeks of training data — uno por sujeto del estudio TFG
+  // Las cargas reflejan la distribución del mesociclo de cada sujeto:
+  //   G=Generalización (12-13), C=Carga (15-17), CH=Choque (20-23), R=Recuperación (8-10)
   const profiles = [
-    {aid:1, loads:[12,13,13,14,15,16,22,24], well:[4.2,4.1,4.0,4.0,3.9,3.7,3.3,3.1], cmjAvg:[42.1,42.3,41.8,42.0,41.5,40.8,39.5,39.0]},
-    {aid:2, loads:[12,12,13,13,14,14,15,14], well:[4.3,4.4,4.2,4.3,4.1,4.2,4.0,4.1], cmjAvg:[35.1,35.2,34.9,35.3,35.0,35.1,34.8,34.5]},
-    {aid:3, loads:[15,16,17,19,21,23,24,25], well:[4.0,3.8,3.5,3.3,3.0,2.7,2.3,2.0], cmjAvg:[48.0,47.5,47.0,46.0,44.5,42.0,40.0,38.0]}
+    // S-01 G-C-C-R Introductorio: cargas suaves, wellness alto
+    {aid:1, loads:[12,15,15,9,12,15,15,9],   well:[4.4,4.2,4.0,4.3,4.4,4.1,3.9,4.2], cmjAvg:[31.5,32.0,32.1,32.5,32.4,32.6,32.8,33.0]},
+    // S-02 G-C-C-R Introductorio: similar a S-01
+    {aid:2, loads:[12,15,15,9,13,16,15,10],  well:[4.3,4.1,4.0,4.2,4.3,4.0,3.9,4.1], cmjAvg:[29.8,30.1,30.3,30.6,30.5,30.7,30.9,31.2]},
+    // S-03 G-C-C-R Básico Prep. General: ligeramente más volumen, hipertrofia
+    {aid:3, loads:[13,16,16,10,14,17,17,11], well:[3.6,3.4,3.4,3.6,3.4,2.6,3.6,3.0], cmjAvg:[33.8,34.2,34.1,34.5,34.3,34.6,34.8,35.0]},
+    // S-04 C-CH-C-R Básico Prep. General: introduce semana de choque
+    {aid:4, loads:[16,22,16,10,17,22,16,11], well:[4.0,3.5,3.8,4.1,3.9,3.4,3.7,4.0], cmjAvg:[35.5,36.0,35.8,36.2,36.0,36.5,36.4,36.8]},
+    // S-05 C-CH-CH-R Básico Prep. Específica: dos choques consecutivos, mucha carga
+    {aid:5, loads:[16,22,22,10,17,23,23,11], well:[3.9,3.3,3.0,4.0,3.7,3.1,2.8,3.9], cmjAvg:[37.5,38.0,37.8,38.5,38.2,38.6,38.4,39.0]},
+    // S-06 Validar calculadora APRE: irregular, sin estructura clásica
+    {aid:6, loads:[14,16,18,16,17,15,18,17], well:[3.8,3.7,3.6,3.8,3.7,3.5,3.6,3.7], cmjAvg:[34.5,34.8,34.7,35.0,34.9,35.2,35.0,35.4]}
   ];
   const stypes = ['hipertrofia','fuerza','potencia','fuerza','hipertrofia'];
   const mtypes = ['corriente','corriente','corriente','corriente','corriente','corriente','choque','choque'];
@@ -897,6 +1008,35 @@ function seed(){
         });
       });
     }
+  });
+
+  // ===== WELLNESS REAL del Sujeto-03 (datos del estudio TFG) =====
+  // Preguntas (orden): 1) Fatiga 2) Sueño 3) DOMS 4) Estrés 5) Estado de ánimo
+  // Escala 1-5. Fechas del año actual.
+  const _yr = new Date().getFullYear();
+  const sujeto03Wellness = [
+    // [date, fatigue, sleep, doms, stress, mood]
+    [`${_yr}-05-02`, 4, 2, 4, 3, 4],
+    [`${_yr}-04-30`, 3, 3, 4, 3, 4],
+    [`${_yr}-04-29`, 3, 3, 4, 3, 4],
+    [`${_yr}-04-27`, 4, 4, 3, 3, 4],
+    [`${_yr}-04-24`, 4, 3, 4, 3, 3],
+    [`${_yr}-04-22`, 2, 4, 2, 3, 2],
+    [`${_yr}-04-21`, 4, 3, 3, 4, 4],
+    [`${_yr}-04-20`, 3, 3, 4, 2, 3]
+  ];
+  // Borrar wellness sintético del Sujeto-03 en esas fechas
+  const s3Dates = new Set(sujeto03Wellness.map(r => r[0]));
+  DB.wellness = DB.wellness.filter(w => !(w.athleteId === 3 && s3Dates.has(w.date)));
+  // Insertar los 8 registros reales
+  sujeto03Wellness.forEach(([date, fatigue, sleep, doms, stress, mood]) => {
+    const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
+    DB.wellness.push({
+      id: uid(), athleteId: 3, date,
+      fatigue, sleep, doms, stress, mood,
+      motivation: doms,    // alias legacy
+      score
+    });
   });
 
   // Create sample plans with full macrociclo structure
@@ -972,27 +1112,27 @@ function seed(){
     };
   });
 
-  // Create sample reports (one per coach, each about their own athlete)
+  // Create sample reports — un informe por sujeto de muestra
   DB.reports.push({
-    id:uid(), athleteId:3, coachId:DB.athletes.find(a=>a.id===3).coachId, type:'weekly',
-    title:'Informe Semanal — Alerta de Sobreentrenamiento',
+    id:uid(), athleteId:3, coachId:1, type:'weekly',
+    title:'Informe Semanal — Sujeto-03 · Alerta de Sobreentrenamiento (semana del 22-abr)',
     dateFrom:daysAgo(12), dateTo:daysAgo(6),
     createdAt:daysAgo(7), viewed:false,
-    content:'Se detectan signos de fatiga acumulada. El CMJ ha descendido un 20% respecto al baseline y el Wellness Score promedio de la semana es 2.0/5. Se recomienda descarga inmediata: reducir volumen 40-60%, mantener intensidad alta, y reevaluar en 5-7 días.'
+    content:'Sujeto-03 muestra una caída puntual del Wellness Score a 2.6/5 el 22-abr (Fatiga 2/5, DOMS 2/5, Estado de ánimo 2/5). El CMJ se mantiene estable. Se recomienda mantener carga moderada y vigilar la recuperación durante 48 h.'
   });
   DB.reports.push({
-    id:uid(), athleteId:1, coachId:DB.athletes.find(a=>a.id===1).coachId, type:'weekly',
-    title:'Informe Semanal — Microciclo de Choque',
+    id:uid(), athleteId:5, coachId:1, type:'weekly',
+    title:'Informe Semanal — Sujeto-05 · Microciclo de Choque',
     dateFrom:daysAgo(12), dateTo:daysAgo(6),
     createdAt:daysAgo(8), viewed:true,
-    content:'Carlos ha completado un microciclo de choque con carga normalizada de 24/25. El ratio aguda/crónica se sitúa en zona amarilla (1.33). El Wellness muestra fatiga moderada (3.1/5). Se recomienda transición a microciclo de restablecimiento la próxima semana.'
+    content:'Sujeto-05 ha completado un microciclo de choque con carga normalizada de 23/25. El ratio aguda/crónica se sitúa en zona amarilla (1.30). El Wellness muestra fatiga moderada (3.0/5). Se recomienda transición a microciclo de restablecimiento la próxima semana.'
   });
   DB.reports.push({
-    id:uid(), athleteId:2, coachId:DB.athletes.find(a=>a.id===2).coachId, type:'weekly',
-    title:'Informe Semanal — Progresión Estable',
+    id:uid(), athleteId:1, coachId:1, type:'weekly',
+    title:'Informe Semanal — Sujeto-01 · Progresión Estable',
     dateFrom:daysAgo(12), dateTo:daysAgo(6),
     createdAt:daysAgo(6), viewed:false,
-    content:'Ana mantiene un nivel de wellness estable (4.1/5) y CMJ dentro del rango esperado respecto al baseline. La carga semanal se mantiene en zona óptima. Se recomienda continuar con el microciclo actual sin ajustes.'
+    content:'Sujeto-01 mantiene un nivel de wellness estable (4.2/5) y CMJ dentro del rango esperado respecto al baseline. La carga semanal se mantiene en zona óptima del microciclo introductorio (G-C-C-R). Se recomienda continuar con el microciclo actual sin ajustes.'
   });
 
   save();
@@ -1614,7 +1754,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v37</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v38</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10175,7 +10315,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v37 · CMJ doble método: "CMJ auto" (MediaPipe en vivo) + "CMJ manual" (Flight Time Method de Bosco con jog dial frame a frame, h=1.22625·t²) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v38 · 6 sujetos del TFG implementados como atletas bajo Julián Orejas + wellness real del Sujeto-03 · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
