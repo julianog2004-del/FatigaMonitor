@@ -976,6 +976,33 @@ function seed(){
     });
   });
 
+  // ===== WELLNESS ESTABLE (≈ 4/5 sin fluctuar mucho) para los atletas sin datos reales =====
+  // Sujetos 01, 02, 04, 05, 06 — buena puntuación durante los últimos 14 días.
+  // Cada dimensión tiene 70 % de prob. = 4, 20 % = 5, 10 % = 3 → score ~4.0-4.2.
+  const _wellV = () => {
+    const r = Math.random();
+    if(r < 0.70) return 4;
+    if(r < 0.90) return 5;
+    return 3;
+  };
+  [1, 2, 4, 5, 6].forEach(aid => {
+    for(let d = 14; d >= 0; d--){
+      const date = daysAgo(d);
+      const fatigue = _wellV();
+      const sleep   = _wellV();
+      const doms    = _wellV();
+      const stress  = _wellV();
+      const mood    = _wellV();
+      const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
+      DB.wellness.push({
+        id: uid(), athleteId: aid, date,
+        fatigue, sleep, doms, stress, mood,
+        motivation: doms,
+        score
+      });
+    }
+  });
+
   // ===== PLANES (macrociclos) — 1 mesociclo por sujeto, exacto al TFG =====
   // Distribución del mesociclo:
   //   G  = Generalización  -> microType:'corriente',         targetLoad:12
@@ -1765,7 +1792,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v40</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v41</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10381,7 +10408,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v40 · Panel "Información del Estudio TFG" en cada atleta + sessions reales (4 microciclos según G/C/CH/R) + CMJ solo para Sujetos 01, 04, 05, 06 · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v41 · Wellness estable (≈4/5) añadido a S-01, S-02, S-04, S-05, S-06 (15 días) · Sujeto-03 conserva sus 8 wellness reales · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
