@@ -936,82 +936,23 @@ function seed(){
        weightChange:-7.0 }}
   ];
 
-  // Generate 8 weeks of training data — uno por sujeto del estudio TFG
-  // Las cargas reflejan la distribución del mesociclo de cada sujeto:
-  //   G=Generalización (12-13), C=Carga (15-17), CH=Choque (20-23), R=Recuperación (8-10)
-  const profiles = [
-    // S-01 G-C-C-R Introductorio: cargas suaves, wellness alto
-    {aid:1, loads:[12,15,15,9,12,15,15,9],   well:[4.4,4.2,4.0,4.3,4.4,4.1,3.9,4.2], cmjAvg:[31.5,32.0,32.1,32.5,32.4,32.6,32.8,33.0]},
-    // S-02 G-C-C-R Introductorio: similar a S-01
-    {aid:2, loads:[12,15,15,9,13,16,15,10],  well:[4.3,4.1,4.0,4.2,4.3,4.0,3.9,4.1], cmjAvg:[29.8,30.1,30.3,30.6,30.5,30.7,30.9,31.2]},
-    // S-03 G-C-C-R Básico Prep. General: ligeramente más volumen, hipertrofia
-    {aid:3, loads:[13,16,16,10,14,17,17,11], well:[3.6,3.4,3.4,3.6,3.4,2.6,3.6,3.0], cmjAvg:[33.8,34.2,34.1,34.5,34.3,34.6,34.8,35.0]},
-    // S-04 C-CH-C-R Básico Prep. General: introduce semana de choque
-    {aid:4, loads:[16,22,16,10,17,22,16,11], well:[4.0,3.5,3.8,4.1,3.9,3.4,3.7,4.0], cmjAvg:[35.5,36.0,35.8,36.2,36.0,36.5,36.4,36.8]},
-    // S-05 C-CH-CH-R Básico Prep. Específica: dos choques consecutivos, mucha carga
-    {aid:5, loads:[16,22,22,10,17,23,23,11], well:[3.9,3.3,3.0,4.0,3.7,3.1,2.8,3.9], cmjAvg:[37.5,38.0,37.8,38.5,38.2,38.6,38.4,39.0]},
-    // S-06 Validar calculadora APRE: irregular, sin estructura clásica
-    {aid:6, loads:[14,16,18,16,17,15,18,17], well:[3.8,3.7,3.6,3.8,3.7,3.5,3.6,3.7], cmjAvg:[34.5,34.8,34.7,35.0,34.9,35.2,35.0,35.4]}
-  ];
-  const stypes = ['hipertrofia','fuerza','potencia','fuerza','hipertrofia'];
-  const mtypes = ['corriente','corriente','corriente','corriente','corriente','corriente','choque','choque'];
+  // ===== INICIALIZACIÓN LIMPIA =====
+  // SOLO se incluyen datos REALES extraídos del estudio TFG (Tabla 1).
+  // No se generan sessions, CMJ ni wellness sintéticos para los sujetos
+  // (excepto los 8 registros reales del wellness del Sujeto-03 abajo).
+  DB.sessions = [];
+  DB.wellness = [];
+  DB.cmj = [];
+  DB.reports = [];
+  DB.plans = [];
 
-  DB.sessions=[]; DB.wellness=[]; DB.cmj=[]; DB.reports=[]; DB.plans=[];
-
-  profiles.forEach(p => {
-    for(let w=0;w<8;w++){
-      const weekDaysAgo = (7-w)*7; // week 0 = 56 days ago, week 7 = 0 days ago
-      const load = p.loads[w];
-      const wellBase = p.well[w];
-      const cmjBase = p.cmjAvg[w];
-      // 5 sessions per week (Mon-Fri)
-      for(let d=0;d<5;d++){
-        const dayOff = weekDaysAgo + (6-d); // spread across the week
-        if(dayOff<0) continue;
-        const date = daysAgo(dayOff);
-        DB.sessions.push({
-          id:uid(), athleteId:p.aid, date,
-          type: stypes[d%5],
-          microType: mtypes[w],
-          volume: Math.round(80+Math.random()*60),
-          intensity: Math.round(55+Math.random()*35),
-          extLoad: +(load/5 + (Math.random()-.5)*1).toFixed(1),
-          rpe: Math.min(10, Math.max(1, Math.round(load/3 + (Math.random()-.5)*2))),
-          notes:''
-        });
-      }
-      // Daily wellness (7 days)
-      for(let d=0;d<7;d++){
-        const dayOff = weekDaysAgo + (6-d);
-        if(dayOff<0) continue;
-        const date = daysAgo(dayOff);
-        const v = n => Math.max(1,Math.min(5, Math.round(n + (Math.random()-.5)*1)));
-        const sc = +(wellBase + (Math.random()-.5)*.4).toFixed(1);
-        const domsVal = v(wellBase+.1);
-        DB.wellness.push({
-          id:uid(), athleteId:p.aid, date,
-          fatigue:v(wellBase), mood:v(wellBase), sleep:v(wellBase+.2),
-          stress:v(wellBase-.1),
-          doms: domsVal,
-          motivation: domsVal, // alias legacy — evita '-' en vistas antiguas
-          score: Math.max(1,Math.min(5,+sc))
-        });
-      }
-      // CMJ 3x per week
-      [1,3,5].forEach(d=>{
-        const dayOff = weekDaysAgo + (6-d);
-        if(dayOff<0) return;
-        const date = daysAgo(dayOff);
-        DB.cmj.push({
-          id:uid(), athleteId:p.aid, date,
-          value: +(cmjBase + (Math.random()-.5)*1.5).toFixed(1)
-        });
-      });
-    }
-  });
-
-  // ===== WELLNESS REAL del Sujeto-03 (datos del estudio TFG) =====
-  // Preguntas (orden): 1) Fatiga 2) Sueño 3) DOMS 4) Estrés 5) Estado de ánimo
+  // ===== WELLNESS REAL del Sujeto-03 (Tabla del estudio TFG) =====
+  // Preguntas (orden de las columnas):
+  //   1) ¿Cómo de cansado te sientes hoy?           -> fatigue
+  //   2) ¿Cómo has dormido esta noche?              -> sleep
+  //   3) ¿Dolor o molestias musculares?             -> doms
+  //   4) ¿Cómo es tu nivel de estrés general?       -> stress
+  //   5) ¿Cómo te has sentido a lo largo del día?   -> mood
   // Escala 1-5. Fechas del año actual.
   const _yr = new Date().getFullYear();
   const sujeto03Wellness = [
@@ -1025,10 +966,6 @@ function seed(){
     [`${_yr}-04-21`, 4, 3, 3, 4, 4],
     [`${_yr}-04-20`, 3, 3, 4, 2, 3]
   ];
-  // Borrar wellness sintético del Sujeto-03 en esas fechas
-  const s3Dates = new Set(sujeto03Wellness.map(r => r[0]));
-  DB.wellness = DB.wellness.filter(w => !(w.athleteId === 3 && s3Dates.has(w.date)));
-  // Insertar los 8 registros reales
   sujeto03Wellness.forEach(([date, fatigue, sleep, doms, stress, mood]) => {
     const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
     DB.wellness.push({
@@ -1039,100 +976,103 @@ function seed(){
     });
   });
 
-  // Create sample plans with full macrociclo structure
-  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const etapas = ['General','General','General','Específica','Específica','Específica','Específica','Pre-competitiva','Pre-competitiva','Competitiva','Competitiva','Transición'];
-  const periodos = ['Preparatorio','Preparatorio','Preparatorio','Preparatorio','Preparatorio','Preparatorio','Preparatorio','Competitivo','Competitivo','Competitivo','Competitivo','Transitorio'];
+  // ===== PLANES (macrociclos) — 1 mesociclo por sujeto, exacto al TFG =====
+  // Distribución del mesociclo:
+  //   G  = Generalización  -> microType:'corriente',         targetLoad:12
+  //   C  = Carga           -> microType:'corriente',         targetLoad:16
+  //   CH = Choque          -> microType:'choque',            targetLoad:22
+  //   R  = Recuperación    -> microType:'restablecimiento',  targetLoad:9
+  const microcycleCode = code => {
+    if(code === 'G')  return { microType:'corriente',         targetLoad:12, label:'Generalización' };
+    if(code === 'C')  return { microType:'corriente',         targetLoad:16, label:'Carga' };
+    if(code === 'CH') return { microType:'choque',            targetLoad:22, label:'Choque' };
+    if(code === 'R')  return { microType:'restablecimiento',  targetLoad:9,  label:'Recuperación' };
+    return { microType:'corriente', targetLoad:12, label:code };
+  };
   const dayLabels = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const sesTypes = ['Hipertrofia','Fuerza Máx.','Potencia','Aeróbica','Técnica','Descanso','Descanso'];
+  const _planStart = daysAgo(60);
 
   DB.plans = DB.athletes.map(a => {
-    // Build 52 weeks
-    const weeks = Array.from({length:52},(_, i)=>{
-      let type = 'corriente';
-      if((i+1)%4===0) type='restablecimiento';
-      if(i%8===6) type='choque';
-      if(i===25||i===51) type='competicion';
-      if(i%12===11) type='control';
-      const tl = type==='restablecimiento'?Math.round(6+Math.random()*4):type==='choque'?Math.round(19+Math.random()*6):type==='competicion'?Math.round(15+Math.random()*5):Math.round(11+Math.random()*7);
-      return {weekNum:i+1, type, targetLoad:Math.min(25,tl), competition:type==='competicion', mesociclo:Math.floor(i/4.33)+1, etapa:etapas[Math.min(11,Math.floor(i/4.33))], periodo:periodos[Math.min(11,Math.floor(i/4.33))]};
-    });
-    // Build 12 mesociclos, each with 4 microcycles of 7 sessions
-    const mesociclos = Array.from({length:12},(_,mi)=>({
-      num:mi+1, name:monthNames[mi],
-      microcycles: Array.from({length:4},(_,wi)=>({
-        weekNum:wi+1,
+    const sd = a.studyData || {};
+    const distribution = sd.mesoDistribution || '';     // ej: "G-C-C-R", "C-CH-CH-R"
+    const codes = distribution.split('-').filter(Boolean);
+    const isAPRE = sd.weeklyDistribution === 'Validar calculadora APRE';
+
+    // Construir microciclos a partir de los códigos del estudio
+    const microcycles = codes.map((code, wi) => {
+      const c = microcycleCode(code);
+      return {
+        weekNum: wi + 1,
+        microType: c.microType,
+        targetLoad: c.targetLoad,
         sessions: Array.from({length:7},(_,di)=>({
-          num:di+1, day:dayLabels[di],
-          type: di<5 ? sesTypes[di%5] : 'Descanso',
-          volume: di<5 ? Math.round(60+Math.random()*80) : 0,
-          intensity: di<5 ? Math.round(55+Math.random()*35) : 0
+          num: di+1, day: dayLabels[di],
+          // Tipo de sesión sin sintetizar — el coach lo rellena cuando programe la sesión
+          type: '',
+          volume: 0,
+          intensity: 0
         })),
-        observations:''
-      }))
-    }));
-    // Build 12 evaluations with sample body data
-    const baseW = a.weight;
-    const evaluations = Array.from({length:12},(_,i)=>({
-      num:i+1, date: i<3 ? daysAgo(60 - i*30) : '',
-      peso: i<3 ? +(baseW + (Math.random()-0.3)*2*i).toFixed(1) : 0,
-      grasa: i<3 ? +(14 - i*0.3 + (Math.random()-.5)).toFixed(1) : 0,
-      masaMuscular: i<3 ? +(42 + i*0.4 + (Math.random()-.5)).toFixed(1) : 0,
-      biceps: i<3 ? +(35 + i*0.2).toFixed(1) : 0,
-      pecho: i<3 ? +(100 + i*0.3).toFixed(1) : 0,
-      cintura: i<3 ? +(82 - i*0.2).toFixed(1) : 0,
-      cadera: i<3 ? +(96 + i*0.1).toFixed(1) : 0,
-      muslo: i<3 ? +(56 + i*0.3).toFixed(1) : 0,
-      gemelo: i<3 ? +(37 + i*0.1).toFixed(1) : 0,
-      observations: i===0?'Evaluación inicial':'',
-    }));
-    // Build progress tracking — nuevo formato con exercises[] dinámico
-    const planStart = daysAgo(60);
-    const planEnd = daysAgo(60 - 365);
-    const progressExercises = ['Press Banca','Sentadilla','Peso Muerto'];
-    const progress = [
-      {date:daysAgo(60), month:'1°', exercises:[100,150,180]},
-      {date:daysAgo(12), month:'2°', exercises:[105,155,185]},
-    ].map(p=>({...p, total:p.exercises.reduce((s,v)=>s+v,0)}));
+        observations: c.label   // etiqueta legible: Generalización / Carga / Choque / Recuperación
+      };
+    });
+
+    // Lista plana de semanas (utilizada por las vistas de macrociclo)
+    const weeks = codes.map((code, i) => {
+      const c = microcycleCode(code);
+      return {
+        weekNum: i+1,
+        type: c.microType,
+        targetLoad: c.targetLoad,
+        competition: false,
+        mesociclo: 1,
+        etapa: '',
+        periodo: 'Preparatorio'
+      };
+    });
+
+    // Mesociclo único con el nombre del tipo del estudio
+    // (para el sujeto APRE no hay mesociclo formal)
+    const mesociclos = isAPRE ? [] : [{
+      num: 1,
+      name: sd.mesocycleType || 'Mesociclo 1',
+      blockObjective: sd.blockObjective || '',
+      microcycles
+    }];
+
+    // Una sola evaluación inicial con el peso real del estudio
+    const evaluations = [{
+      num: 1, date: _planStart,
+      peso: sd.initialWeight || a.weight,
+      grasa: 0, masaMuscular: 0,
+      biceps: 0, pecho: 0, cintura: 0, cadera: 0, muslo: 0, gemelo: 0,
+      observations: 'Evaluación inicial (estudio TFG)'
+    }];
+
+    // Evaluación final si tenemos peso final
+    if(sd.finalWeight && sd.finalWeight !== sd.initialWeight){
+      evaluations.push({
+        num: 2, date: TODAY,
+        peso: sd.finalWeight,
+        grasa: 0, masaMuscular: 0,
+        biceps: 0, pecho: 0, cintura: 0, cadera: 0, muslo: 0, gemelo: 0,
+        observations: `Cambio: ${sd.weightChange>0?'+':''}${sd.weightChange} kg · IMC ${sd.imcChange>0?'+':''}${sd.imcChange}%`
+      });
+    }
 
     return {
-      id:uid(), athleteId:a.id, coachId:a.coachId,
-      name:`Macrociclo ${a.name}`,
-      title:`Macrociclo de ${a.sport} — Etapa de especialización`,
-      startDate:planStart, endDate:planEnd,
-      sport:a.sport,
-      schedule:{lunes:'Fuerza',martes:'Potencia',miercoles:'Aeróbica',jueves:'Hipertrofia',viernes:'Técnica',sabado:'',domingo:''},
-      observations:'',
-      objectives:[
-        'Incrementar fuerza máxima en los levantamientos principales un 10%',
-        'Mantener composición corporal dentro de la categoría',
-        'Prevenir sobreentrenamiento mediante monitorización CMJ + Wellness'
-      ],
-      weeks, mesociclos, evaluations, progress, progressExercises
+      id: uid(), athleteId: a.id, coachId: a.coachId,
+      name: `Macrociclo ${a.name}`,
+      title: isAPRE
+        ? `${a.name} — Validación calculadora APRE (Auto-Regulating Progressive Resistance Exercise)`
+        : `${a.name} — ${sd.mesocycleType || 'Plan de entrenamiento'}`,
+      startDate: _planStart, endDate: TODAY,
+      sport: a.sport,
+      schedule: { lunes:'', martes:'', miercoles:'', jueves:'', viernes:'', sabado:'', domingo:'' },
+      observations: sd.testResults ? `Test: ${sd.evaluationTests?.join(' + ') || ''} · Resultado: ${sd.testResults}` : '',
+      objectives: a.goals && a.goals.length ? a.goals : [],
+      weeks, mesociclos, evaluations,
+      progress: [], progressExercises: []
     };
-  });
-
-  // Create sample reports — un informe por sujeto de muestra
-  DB.reports.push({
-    id:uid(), athleteId:3, coachId:1, type:'weekly',
-    title:'Informe Semanal — Sujeto-03 · Alerta de Sobreentrenamiento (semana del 22-abr)',
-    dateFrom:daysAgo(12), dateTo:daysAgo(6),
-    createdAt:daysAgo(7), viewed:false,
-    content:'Sujeto-03 muestra una caída puntual del Wellness Score a 2.6/5 el 22-abr (Fatiga 2/5, DOMS 2/5, Estado de ánimo 2/5). El CMJ se mantiene estable. Se recomienda mantener carga moderada y vigilar la recuperación durante 48 h.'
-  });
-  DB.reports.push({
-    id:uid(), athleteId:5, coachId:1, type:'weekly',
-    title:'Informe Semanal — Sujeto-05 · Microciclo de Choque',
-    dateFrom:daysAgo(12), dateTo:daysAgo(6),
-    createdAt:daysAgo(8), viewed:true,
-    content:'Sujeto-05 ha completado un microciclo de choque con carga normalizada de 23/25. El ratio aguda/crónica se sitúa en zona amarilla (1.30). El Wellness muestra fatiga moderada (3.0/5). Se recomienda transición a microciclo de restablecimiento la próxima semana.'
-  });
-  DB.reports.push({
-    id:uid(), athleteId:1, coachId:1, type:'weekly',
-    title:'Informe Semanal — Sujeto-01 · Progresión Estable',
-    dateFrom:daysAgo(12), dateTo:daysAgo(6),
-    createdAt:daysAgo(6), viewed:false,
-    content:'Sujeto-01 mantiene un nivel de wellness estable (4.2/5) y CMJ dentro del rango esperado respecto al baseline. La carga semanal se mantiene en zona óptima del microciclo introductorio (G-C-C-R). Se recomienda continuar con el microciclo actual sin ajustes.'
   });
 
   save();
@@ -1754,7 +1694,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v38</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v39</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10315,7 +10255,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v38 · 6 sujetos del TFG implementados como atletas bajo Julián Orejas + wellness real del Sujeto-03 · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v39 · Datos limpiados — solo se mantienen los datos reales del estudio (mesociclos exactos según tabla TFG + 8 wellness reales del Sujeto-03) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
