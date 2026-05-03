@@ -1213,7 +1213,7 @@ function seed(){
     ['Mes 9 — Específico',                  'Reanudar carga',                      ['C','CH','CH','R'],  'Competitiva',     'Competitivo'],
     ['Mes 10 — Pico',                       'Máxima intensidad',                   ['CH','CH','CH','R'], 'Competitiva',     'Competitivo'],
     ['Mes 11 — Competitivo',                'Pico final + competición',            ['C','C','COMP','R'], 'Competitiva',     'Competitivo'],
-    ['Mes 12 — Transición',                 'Recuperación activa',                 ['R','R','R','R'],    'Transición',      'Transitorio']
+    ['Mes 12 — Transición',                 'Recuperación activa + reintroducción', ['R','R','G','C'],   'Transición',      'Transitorio']
   ];
 
   // Rangos por código de microciclo (incluye competición)
@@ -1260,28 +1260,46 @@ function seed(){
     return { num: mi+1, name, blockObjective: blockObj, microcycles };
   });
 
-  // ----- 2) Generar SESSIONS para 260 días reales (Lun-Vie × 52 semanas) -----
+  // ----- 2) Generar SESSIONS para 240 días reales (Lun-Vie × 48 semanas) -----
+  // El TIPO de sesión varía POR DÍA (Lun-Vie) según el código del microciclo.
+  // Eso da realismo: aunque el microciclo sea Carga, no todos los días son
+  // hipertrofia — hay rotación entre fuerza, hipertrofia, potencia, aeróbica, técnica.
   const _rngI2 = (a,b) => Math.round(a + Math.random()*(b-a));
+  // Patrón de tipos por código (Lun, Mar, Mié, Jue, Vie)
+  const dailyTypePattern = {
+    'G':    ['fuerza',     'hipertrofia', 'aerobica',  'fuerza',     'tecnica'],
+    'C':    ['hipertrofia','fuerza',      'potencia',  'hipertrofia','aerobica'],
+    'CH':   ['fuerza',     'potencia',    'fuerza',    'hipertrofia','aerobica'],
+    'R':    ['tecnica',    'aerobica',    'tecnica',   'aerobica',   'tecnica'],
+    'COMP': ['fuerza',     'tecnica',     'potencia',  'fuerza',     'tecnica']
+  };
   jogMesoPlan.forEach((meso, mi) => {
     const microcodes = meso[2];
     microcodes.forEach((code, wi) => {
       const r = jogMicroRanges[code];
       const globalWeek = mi*4 + wi;     // 0..47
-      // Esta semana: Lun..Vie. weekNum 0 es la más antigua (52 semanas atrás)
+      // Esta semana: Lun..Vie. weekNum 0 es la más antigua (48 semanas atrás)
       const weekStartAgo = (47 - globalWeek) * 7 + 6;   // Lunes de esta semana
+      const types = dailyTypePattern[code] || dailyTypePattern['C'];
       for(let d=0; d<5; d++){
         const dayOff = weekStartAgo - d;
         if(dayOff < 0 || dayOff > 364) continue;
         const date = daysAgo(dayOff);
-        const vol = _rngI2(r.vol[0], r.vol[1]);
-        const int = _rngI2(r.int[0], r.int[1]);
-        const rpe = _rngI2(r.rpe[0], r.rpe[1]);
+        // El día de aeróbica/técnica suele tener menos volumen e intensidad
+        const dayType = types[d];
+        const isLowImpact = dayType === 'aerobica' || dayType === 'tecnica';
+        const volMod = isLowImpact ? 0.7 : 1.0;
+        const intMod = isLowImpact ? 0.85 : 1.0;
+        const rpeMod = isLowImpact ? 0.85 : 1.0;
+        const vol = Math.round(_rngI2(r.vol[0], r.vol[1]) * volMod);
+        const int = Math.round(_rngI2(r.int[0], r.int[1]) * intMod);
+        const rpe = Math.max(2, Math.min(10, Math.round(_rngI2(r.rpe[0], r.rpe[1]) * rpeMod)));
         const extLoad = +(vol * (int/100) * (rpe/10) / 10).toFixed(1);
         DB.sessions.push({
           id: uid(), athleteId: JOG_AID, date,
-          type: r.type, microType: r.micro,
+          type: dayType, microType: r.micro,
           volume: vol, intensity: int, extLoad, rpe,
-          notes: code === 'COMP' ? 'Competición' : ''
+          notes: code === 'COMP' ? (d === 2 ? 'Competición · día de evento' : 'Semana de competición') : ''
         });
       }
     });
@@ -2062,7 +2080,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v42</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v43</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10678,7 +10696,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v42 · Atleta de demostración "Julián OG" con macrociclo completo de 12 meses (48 microciclos, 240 sesiones, 365 wellness, 156 CMJ, 12 evaluaciones, 6 informes) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v43 · Sesiones de Julián OG ahora varían por día (fuerza/hipertrofia/potencia/aeróbica/técnica) + mes 12 más realista (R-R-G-C) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
