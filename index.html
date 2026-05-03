@@ -823,7 +823,9 @@ function seed(){
     {id:6, name:'Sujeto-03', email:'sujeto03@fatiga.es', pass:'atleta123', type:'athlete', athleteId:3},
     {id:7, name:'Sujeto-04', email:'sujeto04@fatiga.es', pass:'atleta123', type:'athlete', athleteId:4},
     {id:8, name:'Sujeto-05', email:'sujeto05@fatiga.es', pass:'atleta123', type:'athlete', athleteId:5},
-    {id:9, name:'Sujeto-06', email:'sujeto06@fatiga.es', pass:'atleta123', type:'athlete', athleteId:6}
+    {id:9, name:'Sujeto-06', email:'sujeto06@fatiga.es', pass:'atleta123', type:'athlete', athleteId:6},
+    // Atleta de demostración con macrociclo completo de 12 meses
+    {id:10, name:'Julián OG', email:'julianog@fatiga.es', pass:'atleta123', type:'athlete', athleteId:7}
   ];
   // Fechas de competición ancladas al año actual para que los picks caigan en meses reales
   const _thisYear = new Date().getFullYear();
@@ -933,7 +935,15 @@ function seed(){
        imcChange:-2.5,
        initialWeight:71,
        finalWeight:64,
-       weightChange:-7.0 }}
+       weightChange:-7.0 }},
+    // Atleta de demostración: Julián OG — macrociclo completo de 12 meses
+    // (no es un sujeto del estudio, sino un caso de uso completo de la app)
+    {id:7, userId:10, name:'Julián OG', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
+     age:22, weight:75, height:178, cmjBase:42, coachId:1, photo:'JO',
+     level:'Avanzado',
+     goals:['Fuerza máxima','Hipertrofia','Potencia'],
+     competitionDates:[_compDate(7,15), _compDate(11,10)],
+     competitionType:'Campeonato nacional'}
   ];
 
   // ===== INICIALIZACIÓN LIMPIA =====
@@ -1019,7 +1029,9 @@ function seed(){
   const dayLabels = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const _planStart = daysAgo(60);
 
-  DB.plans = DB.athletes.map(a => {
+  // Solo los 6 sujetos del estudio TFG generan plan de 4 semanas.
+  // Julián OG (id:7) tiene su propio plan completo de 12 meses (lo añadimos abajo).
+  DB.plans = DB.athletes.filter(a => a.studyData).map(a => {
     const sd = a.studyData || {};
     const distribution = sd.mesoDistribution || '';     // ej: "G-C-C-R", "C-CH-CH-R"
     const codes = distribution.split('-').filter(Boolean);
@@ -1172,6 +1184,264 @@ function seed(){
       });
     });
   });
+
+  // =====================================================================
+  // ===== JULIÁN OG (id:7) — Macrociclo completo de 12 meses ===========
+  // =====================================================================
+  // Datos sintéticos REALISTAS para tener un informe lo más completo posible:
+  //   - Plan: 52 semanas, 12 mesociclos, 48 microciclos, sesiones programadas
+  //   - 260 sesiones (5/semana × 52)
+  //   - 364 wellness diarios
+  //   - 156 mediciones CMJ (3/semana)
+  //   - 12 evaluaciones mensuales de composición corporal
+  //   - 6 informes a lo largo del año
+  const JOG_AID = 7;
+  const JOG_START = daysAgo(364);
+
+  // Patrón de mesociclos a lo largo del año (12 meses × 4 microciclos)
+  // Periodización clásica: Preparatorio → Específico → Pre-comp → Comp → Transición
+  const jogMesoPlan = [
+    // [nombre,                            objetivoBloque,                       microcodes,           etapa,            periodo]
+    ['Mes 1 — Introductorio',               'Acondicionamiento general',           ['G','C','C','R'],    'General',         'Preparatorio'],
+    ['Mes 2 — Básico Prep. General',        'Capacidad aeróbica + fuerza-resist.', ['G','C','C','R'],    'General',         'Preparatorio'],
+    ['Mes 3 — Básico Prep. General',        'Resistencia a la fuerza',             ['C','C','CH','R'],   'General',         'Preparatorio'],
+    ['Mes 4 — Básico Prep. Específica',     'Fuerza máxima',                       ['C','CH','C','R'],   'Específica',      'Preparatorio'],
+    ['Mes 5 — Específico',                  'Hipertrofia funcional',               ['C','CH','CH','R'],  'Específica',      'Preparatorio'],
+    ['Mes 6 — Específico',                  'Potencia y fuerza explosiva',         ['CH','CH','C','R'],  'Específica',      'Preparatorio'],
+    ['Mes 7 — Pre-competitivo',             'Pico de forma + competición',         ['CH','C','COMP','R'],'Pre-competitiva', 'Competitivo'],
+    ['Mes 8 — Mantenimiento',               'Mantener estado óptimo',              ['C','CH','C','R'],   'Pre-competitiva', 'Competitivo'],
+    ['Mes 9 — Específico',                  'Reanudar carga',                      ['C','CH','CH','R'],  'Competitiva',     'Competitivo'],
+    ['Mes 10 — Pico',                       'Máxima intensidad',                   ['CH','CH','CH','R'], 'Competitiva',     'Competitivo'],
+    ['Mes 11 — Competitivo',                'Pico final + competición',            ['C','C','COMP','R'], 'Competitiva',     'Competitivo'],
+    ['Mes 12 — Transición',                 'Recuperación activa',                 ['R','R','R','R'],    'Transición',      'Transitorio']
+  ];
+
+  // Rangos por código de microciclo (incluye competición)
+  const jogMicroRanges = {
+    'G':    { vol:[80,100],   int:[55,68], rpe:[5,6],  type:'fuerza',      micro:'corriente',          tload:12, label:'Generalización' },
+    'C':    { vol:[100,135],  int:[68,80], rpe:[6,7],  type:'hipertrofia', micro:'corriente',          tload:16, label:'Carga' },
+    'CH':   { vol:[130,170],  int:[78,92], rpe:[8,9],  type:'fuerza',      micro:'choque',             tload:22, label:'Choque' },
+    'R':    { vol:[55,80],    int:[50,65], rpe:[4,5],  type:'tecnica',     micro:'restablecimiento',   tload:9,  label:'Recuperación' },
+    'COMP': { vol:[110,140],  int:[88,98], rpe:[9,10], type:'fuerza',      micro:'competicion',        tload:20, label:'Competición' }
+  };
+
+  const dayLabelsLong = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const sesTypeMap = ['Hipertrofia','Fuerza Máx.','Potencia','Aeróbica','Técnica','Descanso','Descanso'];
+
+  // ----- 1) Construir el plan completo -----
+  const jogWeeks = [];
+  const jogMesociclos = jogMesoPlan.map((meso, mi) => {
+    const [name, blockObj, microcodes, etapa, periodo] = meso;
+    const microcycles = microcodes.map((code, wi) => {
+      const r = jogMicroRanges[code];
+      const globalWeekNum = mi*4 + wi + 1;
+      const isComp = code === 'COMP';
+      jogWeeks.push({
+        weekNum: globalWeekNum,
+        type: r.micro,
+        targetLoad: r.tload,
+        competition: isComp,
+        mesociclo: mi+1,
+        etapa, periodo
+      });
+      return {
+        weekNum: wi + 1,
+        microType: r.micro,
+        targetLoad: r.tload,
+        sessions: Array.from({length:7},(_,di)=>({
+          num: di+1, day: dayLabelsLong[di],
+          type: di<5 ? sesTypeMap[di%5] : 'Descanso',
+          volume: di<5 ? Math.round((r.vol[0]+r.vol[1])/2) : 0,
+          intensity: di<5 ? Math.round((r.int[0]+r.int[1])/2) : 0
+        })),
+        observations: r.label
+      };
+    });
+    return { num: mi+1, name, blockObjective: blockObj, microcycles };
+  });
+
+  // ----- 2) Generar SESSIONS para 260 días reales (Lun-Vie × 52 semanas) -----
+  const _rngI2 = (a,b) => Math.round(a + Math.random()*(b-a));
+  jogMesoPlan.forEach((meso, mi) => {
+    const microcodes = meso[2];
+    microcodes.forEach((code, wi) => {
+      const r = jogMicroRanges[code];
+      const globalWeek = mi*4 + wi;     // 0..47
+      // Esta semana: Lun..Vie. weekNum 0 es la más antigua (52 semanas atrás)
+      const weekStartAgo = (47 - globalWeek) * 7 + 6;   // Lunes de esta semana
+      for(let d=0; d<5; d++){
+        const dayOff = weekStartAgo - d;
+        if(dayOff < 0 || dayOff > 364) continue;
+        const date = daysAgo(dayOff);
+        const vol = _rngI2(r.vol[0], r.vol[1]);
+        const int = _rngI2(r.int[0], r.int[1]);
+        const rpe = _rngI2(r.rpe[0], r.rpe[1]);
+        const extLoad = +(vol * (int/100) * (rpe/10) / 10).toFixed(1);
+        DB.sessions.push({
+          id: uid(), athleteId: JOG_AID, date,
+          type: r.type, microType: r.micro,
+          volume: vol, intensity: int, extLoad, rpe,
+          notes: code === 'COMP' ? 'Competición' : ''
+        });
+      }
+    });
+  });
+
+  // ----- 3) WELLNESS diario (364 entradas) -----
+  // Score base depende del microciclo del día:
+  //   G/C  → base 4 (alto)
+  //   CH   → base 3.3 (más fatiga)
+  //   R    → base 4.4 (recuperación)
+  //   COMP → base 3.8 (competición, algo de estrés)
+  const wellByCode = { 'G':4.0, 'C':4.0, 'CH':3.3, 'R':4.4, 'COMP':3.8 };
+  const _vNoise = (base) => {
+    // Devuelve un entero 1-5 cercano a base, con pequeña varianza
+    const n = base + (Math.random() - 0.5) * 1.0;
+    return Math.max(1, Math.min(5, Math.round(n)));
+  };
+  for(let d = 364; d >= 0; d--){
+    const globalWeek = Math.floor((364 - d) / 7);
+    const mi = Math.min(11, Math.floor(globalWeek / 4));
+    const wi = globalWeek % 4;
+    const code = jogMesoPlan[mi][2][wi];
+    const base = wellByCode[code] || 4;
+    const fatigue = _vNoise(base);
+    const sleep   = _vNoise(base + 0.2);
+    const doms    = _vNoise(base - 0.1);
+    const stress  = _vNoise(base);
+    const mood    = _vNoise(base);
+    const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
+    DB.wellness.push({
+      id: uid(), athleteId: JOG_AID, date: daysAgo(d),
+      fatigue, sleep, doms, stress, mood,
+      motivation: doms,
+      score
+    });
+  }
+
+  // ----- 4) CMJ — 3 mediciones por semana (156 totales) -----
+  // Trayectoria: 42 → 43 → 44 → 44.5 → 45 → 45.5 → 47(comp) → 45 → 45.5 → 46 → 47.5(comp) → 44(transic.)
+  const cmjMonthly = [42.0, 43.0, 44.0, 44.5, 45.0, 45.5, 47.0, 45.0, 45.5, 46.0, 47.5, 44.0];
+  for(let d = 364; d >= 0; d--){
+    // 3 días por semana: Lun, Mié, Vie (días 1, 3, 5 de la semana - desde el plan)
+    // Calculamos el día de la semana ISO: 0=Dom, 1=Lun, ..., 6=Sáb
+    const date = new Date(toDate(daysAgo(d)));
+    const dow = date.getDay();
+    if(dow !== 1 && dow !== 3 && dow !== 5) continue;   // solo Lun/Mié/Vie
+    const monthIdx = Math.min(11, Math.floor((364 - d) / 30.5));
+    const baseCmj = cmjMonthly[monthIdx];
+    // Pequeña fluctuación natural ±0.8 cm
+    const value = +(baseCmj + (Math.random() - 0.5) * 1.6).toFixed(1);
+    DB.cmj.push({
+      id: uid(), athleteId: JOG_AID, date: daysAgo(d),
+      value
+    });
+  }
+
+  // ----- 5) EVALUACIONES — 12 mensuales de composición corporal -----
+  // Trayectoria realista: definición ligera primer trimestre, hipertrofia, mantenimiento
+  const jogEvalsData = [
+    // mes 1: punto de partida
+    { peso:75.0, grasa:14.0, masaMuscular:42.0, biceps:36.0, pecho:102, cintura:81, cadera:96, muslo:56, gemelo:37, obs:'Evaluación inicial — comienzo del macrociclo anual' },
+    { peso:74.5, grasa:13.6, masaMuscular:42.2, biceps:36.1, pecho:102, cintura:80, cadera:96, muslo:56.3, gemelo:37, obs:'Adaptación al plan — buena respuesta inicial' },
+    { peso:74.0, grasa:13.2, masaMuscular:42.5, biceps:36.3, pecho:102.5, cintura:79.5, cadera:96, muslo:56.5, gemelo:37.2, obs:'Cierre preparatorio general — recomp. inicial' },
+    { peso:73.8, grasa:12.8, masaMuscular:43.0, biceps:36.5, pecho:103, cintura:79, cadera:96, muslo:56.8, gemelo:37.3, obs:'Preparatorio específico — fuerza máxima en alza' },
+    { peso:74.2, grasa:12.5, masaMuscular:43.6, biceps:36.8, pecho:103.5, cintura:78.5, cadera:96.5, muslo:57.2, gemelo:37.5, obs:'Hipertrofia funcional — ganancia de masa magra' },
+    { peso:74.5, grasa:12.2, masaMuscular:44.0, biceps:37.0, pecho:104, cintura:78.5, cadera:96.5, muslo:57.5, gemelo:37.5, obs:'Cierre preparatorio específico — pico próximo' },
+    { peso:74.0, grasa:11.5, masaMuscular:44.0, biceps:37.0, pecho:104, cintura:78, cadera:96.5, muslo:57.5, gemelo:37.5, obs:'Pre-competición — definición para competir' },
+    { peso:74.5, grasa:12.0, masaMuscular:43.8, biceps:37.0, pecho:104, cintura:78, cadera:96.5, muslo:57.5, gemelo:37.5, obs:'Mantenimiento post-competición' },
+    { peso:74.8, grasa:12.2, masaMuscular:44.0, biceps:37.0, pecho:104, cintura:78.5, cadera:96.5, muslo:57.6, gemelo:37.6, obs:'Reanudación de carga' },
+    { peso:75.0, grasa:12.0, masaMuscular:44.3, biceps:37.2, pecho:104.5, cintura:78, cadera:96.5, muslo:57.8, gemelo:37.8, obs:'Pico — máxima intensidad' },
+    { peso:73.8, grasa:11.2, masaMuscular:43.8, biceps:37.0, pecho:104, cintura:77.5, cadera:96, muslo:57.5, gemelo:37.5, obs:'Pico final + competición — peak shape' },
+    { peso:74.5, grasa:12.5, masaMuscular:43.5, biceps:36.8, pecho:103.5, cintura:78, cadera:96.5, muslo:57.3, gemelo:37.5, obs:'Transición — recuperación activa, fin de ciclo anual' }
+  ];
+  const jogEvaluations = jogEvalsData.map((e, i) => ({
+    num: i+1,
+    date: daysAgo(364 - i*30),     // 1 evaluación cada ~30 días
+    peso: e.peso, grasa: e.grasa, masaMuscular: e.masaMuscular,
+    biceps: e.biceps, pecho: e.pecho, cintura: e.cintura, cadera: e.cadera,
+    muslo: e.muslo, gemelo: e.gemelo,
+    observations: e.obs
+  }));
+
+  // ----- 6) PROGRESS — registros de cargas en levantamientos principales -----
+  // 6 hitos a lo largo del año: 1RM aproximado en Press Banca, Sentadilla, Peso Muerto
+  const jogProgress = [
+    { date: daysAgo(364), month:'Mes 1',  exercises:[100, 140, 170] },
+    { date: daysAgo(304), month:'Mes 3',  exercises:[107, 150, 180] },
+    { date: daysAgo(244), month:'Mes 5',  exercises:[115, 160, 190] },
+    { date: daysAgo(184), month:'Mes 7',  exercises:[120, 170, 200] },   // post-competición 1
+    { date: daysAgo(94),  month:'Mes 10', exercises:[125, 178, 207] },
+    { date: daysAgo(34),  month:'Mes 12', exercises:[128, 180, 210] }    // post-competición 2
+  ].map(p => ({...p, total: p.exercises.reduce((s,v)=>s+v,0)}));
+
+  // ----- 7) PLAN completo (macrociclo) -----
+  DB.plans.push({
+    id: uid(), athleteId: JOG_AID, coachId: 1,
+    name: 'Macrociclo Anual — Julián OG',
+    title: 'Macrociclo de Entrenamiento de Fuerza — Temporada Completa',
+    startDate: JOG_START, endDate: TODAY,
+    sport: 'Entrenamiento de Fuerza',
+    schedule: { lunes:'Fuerza Máx.', martes:'Hipertrofia', miercoles:'Potencia', jueves:'Fuerza Máx.', viernes:'Aeróbica', sabado:'Descanso', domingo:'Descanso' },
+    observations: 'Atleta avanzado en periodización clásica de 12 meses con dos competiciones (mes 7 y mes 11). Picos de forma planificados con descargas tras choques.',
+    objectives: [
+      'Incrementar 1RM en los tres levantamientos básicos +25 % en 12 meses',
+      'Mantener composición corporal entre 11-13 % grasa',
+      'Pico de CMJ ≥ 47 cm en momentos competitivos',
+      'Cero lesiones gracias a monitorización continua de wellness y CMJ'
+    ],
+    weeks: jogWeeks,
+    mesociclos: jogMesociclos,
+    evaluations: jogEvaluations,
+    progress: jogProgress,
+    progressExercises: ['Press Banca','Sentadilla','Peso Muerto']
+  });
+
+  // ----- 8) REPORTS — 6 informes significativos del año -----
+  DB.reports.push(
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'monthly',
+      title: 'Informe Mensual — Mes 3 · Cierre del bloque preparatorio general',
+      dateFrom: daysAgo(304), dateTo: daysAgo(274),
+      createdAt: daysAgo(274), viewed: true,
+      content: 'Julián completa los 3 primeros mesociclos sin incidencias. Wellness Score promedio 4.05/5, ratio A:C dentro de zona óptima (1.05). El CMJ ha pasado de 42.0 a 44.0 cm (+4.8 %). 1RM Press Banca: 100 → 107 kg. Recomendación: progresar a la fase de preparación específica.'
+    },
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'monthly',
+      title: 'Informe Mensual — Mes 6 · Cierre del bloque específico',
+      dateFrom: daysAgo(184), dateTo: daysAgo(154),
+      createdAt: daysAgo(154), viewed: true,
+      content: 'Final del periodo preparatorio. Aumento de masa muscular de 42.0 a 44.0 kg. Reducción de grasa al 12.2 %. CMJ 45.5 cm (+8.3 % vs baseline). Próxima competición en 30 días — comenzar afilado.'
+    },
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'event',
+      title: 'Informe Pre-competición — Mes 7 · Pico de forma',
+      dateFrom: daysAgo(154), dateTo: daysAgo(150),
+      createdAt: daysAgo(150), viewed: true,
+      content: 'Atleta en pico óptimo. Peso 74.0 kg, grasa 11.5 %, CMJ 47.0 cm. Wellness Score 4.2/5 los últimos 7 días. Listo para competir.'
+    },
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'event',
+      title: 'Informe Post-competición — Mes 7',
+      dateFrom: daysAgo(140), dateTo: daysAgo(135),
+      createdAt: daysAgo(135), viewed: true,
+      content: 'Excelente competición — récord personal en Sentadilla (170 kg) y Peso Muerto (200 kg). Recuperación inmediata buena. Iniciar microciclo de mantenimiento durante 4 semanas antes de la siguiente fase.'
+    },
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'event',
+      title: 'Informe Post-competición — Mes 11 · Pico final',
+      dateFrom: daysAgo(34), dateTo: daysAgo(28),
+      createdAt: daysAgo(28), viewed: true,
+      content: 'Cierre del año competitivo con récords personales: Press Banca 128 kg, Sentadilla 180 kg, Peso Muerto 210 kg, CMJ 47.5 cm. Pasamos a la fase de transición (4 semanas de recuperación activa) antes de planificar el siguiente macrociclo.'
+    },
+    {
+      id: uid(), athleteId: JOG_AID, coachId: 1, type:'annual',
+      title: 'Informe Anual — Macrociclo completado',
+      dateFrom: daysAgo(364), dateTo: TODAY,
+      createdAt: TODAY, viewed: false,
+      content: 'Año excelente. Progresión total +28 % en 1RM total (410 → 518 kg sumando los 3 levantamientos). CMJ +12 % (42.0 → 47.0 cm). Composición corporal estable en rango 11-13 % grasa con +1.5 kg de masa muscular. 2 competiciones, 0 lesiones, 364 entradas de wellness. Plan recomendado para el próximo año: continuar con periodización clásica e introducir bloques de bajada de volumen para preservar tendones.'
+    }
+  );
 
   save();
 }
@@ -1792,7 +2062,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v41</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v42</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10408,7 +10678,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v41 · Wellness estable (≈4/5) añadido a S-01, S-02, S-04, S-05, S-06 (15 días) · Sujeto-03 conserva sus 8 wellness reales · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v42 · Atleta de demostración "Julián OG" con macrociclo completo de 12 meses (48 microciclos, 240 sesiones, 365 wellness, 156 CMJ, 12 evaluaciones, 6 informes) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
