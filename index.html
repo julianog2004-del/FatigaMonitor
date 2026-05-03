@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- No cachear el HTML: garantiza que GitHub Pages siempre sirva la última versión -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>FatigaMonitor Pro — Monitorización del Entrenamiento</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&display=swap&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -739,7 +743,7 @@ function getSportCategory(sport){
 }
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 7; // Bump this when data model changes — v7: campos de perfil deportivo del atleta
+const DB_VERSION = 8; // Bump this when data model changes — v8: solo 2 atletas (Sujeto-04 + Julián OG con macrociclo 12 meses)
 // Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
 let _cloudSyncTimer = null;
 function _scheduleCloudSync(){
@@ -1951,7 +1955,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v44</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v45</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10567,7 +10571,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v44 · Solo 2 atletas: Sujeto-04 (20 años) y Julián OG · Eliminados Sujetos 01, 02, 03, 05, 06 y todos sus datos asociados · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v45 · DB_VERSION=8 fuerza reseed automático + no-cache para GitHub Pages siempre actualizado · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
