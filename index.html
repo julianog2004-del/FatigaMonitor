@@ -817,78 +817,21 @@ function seed(){
     {id:1, name:'Julián Orejas', email:'coach1@fatiga.es', pass:'coach123', type:'coach'},
     {id:2, name:'El Toro',       email:'coach2@fatiga.es', pass:'coach123', type:'coach'},
     {id:3, name:'Tercero',       email:'coach3@fatiga.es', pass:'coach123', type:'coach'},
-    // 6 sujetos del TFG (Tabla 1 — Resumen de los participantes incluidos en el estudio)
-    {id:4, name:'Sujeto-01', email:'sujeto01@fatiga.es', pass:'atleta123', type:'athlete', athleteId:1},
-    {id:5, name:'Sujeto-02', email:'sujeto02@fatiga.es', pass:'atleta123', type:'athlete', athleteId:2},
-    {id:6, name:'Sujeto-03', email:'sujeto03@fatiga.es', pass:'atleta123', type:'athlete', athleteId:3},
+    // Sujeto-04 del TFG (Tabla 1) — único sujeto del estudio mantenido
     {id:7, name:'Sujeto-04', email:'sujeto04@fatiga.es', pass:'atleta123', type:'athlete', athleteId:4},
-    {id:8, name:'Sujeto-05', email:'sujeto05@fatiga.es', pass:'atleta123', type:'athlete', athleteId:5},
-    {id:9, name:'Sujeto-06', email:'sujeto06@fatiga.es', pass:'atleta123', type:'athlete', athleteId:6},
     // Atleta de demostración con macrociclo completo de 12 meses
     {id:10, name:'Julián OG', email:'julianog@fatiga.es', pass:'atleta123', type:'athlete', athleteId:7}
   ];
   // Fechas de competición ancladas al año actual para que los picks caigan en meses reales
   const _thisYear = new Date().getFullYear();
   const _compDate = (m, d) => `${_thisYear}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  // 6 sujetos del TFG, todos bajo el coach Julián Orejas (id:1)
-  // Datos extraídos de la Tabla 1 del estudio
+  // Solo 2 atletas: Sujeto-04 del estudio TFG y Julián OG (atleta de demo)
+  // Ambos bajo el coach Julián Orejas (id:1)
   DB.athletes = [
-    // Sujeto-01: Ganancia de fuerza y pérdida de grasa · Full-body · Introductorio · G-C-C-R
-    //  Test: flexiones+plancha · +3 flex y +21 s plancha · IMC -5% · 69 → 66.3 kg (perdió 2.7)
-    {id:1, userId:4, name:'Sujeto-01', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:25, weight:69, height:175, cmjBase:32, coachId:1, photo:'S1',
-     level:'Principiante', goals:['Fuerza máxima','Pérdida de grasa','Hipertrofia'],
-     competitionDates:[], competitionType:'',
-     // Datos específicos del estudio
-     studyData:{ subjectId:'S-01',
-       weeklyDistribution:'Full-body',
-       mesocycleType:'Introductorio',
-       blockObjective:'Acondicionamiento general',
-       mesoDistribution:'G-C-C-R',
-       evaluationTests:['Flexiones','Plancha abdominal'],
-       testResults:'+3 flexiones y +21 s plancha',
-       imcChange:-5.0,
-       initialWeight:69,
-       finalWeight:66.3,
-       weightChange:-2.7 }},
-    // Sujeto-02: Ganancia de fuerza y pérdida de grasa · Full-body · Introductorio · G-C-C-R
-    //  Test: flexiones+plancha · +3 flex y +21 s plancha · IMC -5% · 66.55 → 65.35 kg (perdió 1.2)
-    {id:2, userId:5, name:'Sujeto-02', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:26, weight:66.55, height:172, cmjBase:30, coachId:1, photo:'S2',
-     level:'Principiante', goals:['Fuerza máxima','Pérdida de grasa','Hipertrofia'],
-     competitionDates:[], competitionType:'',
-     studyData:{ subjectId:'S-02',
-       weeklyDistribution:'Full-body',
-       mesocycleType:'Introductorio',
-       blockObjective:'Acondicionamiento general',
-       mesoDistribution:'G-C-C-R',
-       evaluationTests:['Flexiones','Plancha abdominal'],
-       testResults:'+3 flexiones y +21 s plancha',
-       imcChange:-5.0,
-       initialWeight:66.55,
-       finalWeight:65.35,
-       weightChange:-1.2 }},
-    // Sujeto-03: Aumentar fuerza e hipertrofia · Full-body · Básico Prep. General · G-C-C-R
-    //  Test: Chair Stand Test 1 min · +5 levantamientos · IMC -2.5% · 63.4 → 62.4 kg (perdió 1)
-    {id:3, userId:6, name:'Sujeto-03', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:27, weight:63.4, height:170, cmjBase:34, coachId:1, photo:'S3',
-     level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
-     competitionDates:[], competitionType:'',
-     studyData:{ subjectId:'S-03',
-       weeklyDistribution:'Full-body',
-       mesocycleType:'Básico de Preparación General',
-       blockObjective:'Capacidad aeróbica y resistencia a la fuerza',
-       mesoDistribution:'G-C-C-R',
-       evaluationTests:['Chair Stand Test (1 min)'],
-       testResults:'+5 levantamientos',
-       imcChange:-2.5,
-       initialWeight:63.4,
-       finalWeight:62.4,
-       weightChange:-1.0 }},
     // Sujeto-04: Aumentar fuerza e hipertrofia · Rutina dividida · Básico Prep. General · C-CH-C-R
     //  Test: Dominadas + Press banca · +5 kg banca y +2 dominadas · IMC -5% · 64 → 66 kg (ganó 2)
     {id:4, userId:7, name:'Sujeto-04', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:25, weight:64, height:170, cmjBase:36, coachId:1, photo:'S4',
+     age:20, weight:64, height:170, cmjBase:36, coachId:1, photo:'S4',
      level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
      competitionDates:[], competitionType:'',
      studyData:{ subjectId:'S-04',
@@ -902,42 +845,7 @@ function seed(){
        initialWeight:64,
        finalWeight:66,
        weightChange:+2.0 }},
-    // Sujeto-05: Aumentar fuerza y potencia · Rutina dividida · Básico Prep. Específica · C-CH-CH-R
-    //  Test: Dominadas + Press banca · igual banca y +2 dominadas · IMC -5% · 100.3 → 98.9 kg (perdió 1.4)
-    {id:5, userId:8, name:'Sujeto-05', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:30, weight:100.3, height:185, cmjBase:38, coachId:1, photo:'S5',
-     level:'Avanzado', goals:['Fuerza máxima','Potencia'],
-     competitionDates:[], competitionType:'',
-     studyData:{ subjectId:'S-05',
-       weeklyDistribution:'Rutina dividida',
-       mesocycleType:'Básico de Preparación Específica',
-       blockObjective:'Fuerza máxima y potencia aeróbica',
-       mesoDistribution:'C-CH-CH-R',
-       evaluationTests:['Dominadas','Press banca · PR'],
-       testResults:'Igual en banca y +2 dominadas',
-       imcChange:-5.0,
-       initialWeight:100.3,
-       finalWeight:98.9,
-       weightChange:-1.4 }},
-    // Sujeto-06: Aumentar PR banca y dominadas · Validar calculadora APRE
-    //  Test: Dominadas + Press banca · +7.5 kg banca y +3 dominadas · IMC -2.5% · 71 → 64 kg (perdió 7)
-    {id:6, userId:9, name:'Sujeto-06', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
-     age:28, weight:71, height:178, cmjBase:35, coachId:1, photo:'S6',
-     level:'Intermedio', goals:['Fuerza máxima','Hipertrofia'],
-     competitionDates:[], competitionType:'',
-     studyData:{ subjectId:'S-06',
-       weeklyDistribution:'Validar calculadora APRE',
-       mesocycleType:'—',
-       blockObjective:'—',
-       mesoDistribution:'—',
-       evaluationTests:['Dominadas','Press banca · PR'],
-       testResults:'+7.5 kg en banca y +3 dominadas',
-       imcChange:-2.5,
-       initialWeight:71,
-       finalWeight:64,
-       weightChange:-7.0 }},
     // Atleta de demostración: Julián OG — macrociclo completo de 12 meses
-    // (no es un sujeto del estudio, sino un caso de uso completo de la app)
     {id:7, userId:10, name:'Julián OG', sport:'Entrenamiento de Fuerza', sportCategory:'Fuerza',
      age:21, weight:78, height:178, cmjBase:42, coachId:1, photo:'JO',
      level:'Avanzado',
@@ -956,46 +864,16 @@ function seed(){
   DB.reports = [];
   DB.plans = [];
 
-  // ===== WELLNESS REAL del Sujeto-03 (Tabla del estudio TFG) =====
-  // Preguntas (orden de las columnas):
-  //   1) ¿Cómo de cansado te sientes hoy?           -> fatigue
-  //   2) ¿Cómo has dormido esta noche?              -> sleep
-  //   3) ¿Dolor o molestias musculares?             -> doms
-  //   4) ¿Cómo es tu nivel de estrés general?       -> stress
-  //   5) ¿Cómo te has sentido a lo largo del día?   -> mood
-  // Escala 1-5. Fechas del año actual.
-  const _yr = new Date().getFullYear();
-  const sujeto03Wellness = [
-    // [date, fatigue, sleep, doms, stress, mood]
-    [`${_yr}-05-02`, 4, 2, 4, 3, 4],
-    [`${_yr}-04-30`, 3, 3, 4, 3, 4],
-    [`${_yr}-04-29`, 3, 3, 4, 3, 4],
-    [`${_yr}-04-27`, 4, 4, 3, 3, 4],
-    [`${_yr}-04-24`, 4, 3, 4, 3, 3],
-    [`${_yr}-04-22`, 2, 4, 2, 3, 2],
-    [`${_yr}-04-21`, 4, 3, 3, 4, 4],
-    [`${_yr}-04-20`, 3, 3, 4, 2, 3]
-  ];
-  sujeto03Wellness.forEach(([date, fatigue, sleep, doms, stress, mood]) => {
-    const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
-    DB.wellness.push({
-      id: uid(), athleteId: 3, date,
-      fatigue, sleep, doms, stress, mood,
-      motivation: doms,    // alias legacy
-      score
-    });
-  });
-
-  // ===== WELLNESS ESTABLE (≈ 4/5 sin fluctuar mucho) para los atletas sin datos reales =====
-  // Sujetos 01, 02, 04, 05, 06 — buena puntuación durante los últimos 14 días.
-  // Cada dimensión tiene 70 % de prob. = 4, 20 % = 5, 10 % = 3 → score ~4.0-4.2.
+  // ===== WELLNESS ESTABLE (≈ 4/5 sin fluctuar mucho) para Sujeto-04 =====
+  // (los datos reales del Sujeto-03 y los del resto se han eliminado al
+  //  reducir la lista de atletas a S-04 + Julián OG)
   const _wellV = () => {
     const r = Math.random();
     if(r < 0.70) return 4;
     if(r < 0.90) return 5;
     return 3;
   };
-  [1, 2, 4, 5, 6].forEach(aid => {
+  [4].forEach(aid => {
     for(let d = 14; d >= 0; d--){
       const date = daysAgo(d);
       const fatigue = _wellV();
@@ -1159,18 +1037,11 @@ function seed(){
     });
   });
 
-  // ===== CMJ — solo Sujetos 01, 04, 05, 06 (no 02 ni 03) =====
+  // ===== CMJ — solo Sujeto-04 (único atleta del estudio que queda) =====
   // 1 medición por semana (4 mediciones a lo largo del macrociclo).
-  // Trayectorias realistas según el tipo de mesociclo:
-  //   S-01 (Introductorio)        : mejora ligera  32 → 33.5
-  //   S-04 (Básico Prep. General) : mejora moderada 36 → 38.2
-  //   S-05 (Básico Prep. Espec.)  : descenso por choque y recuperación 38 → 39
-  //   S-06 (APRE)                 : mejora notable 35 → 38
+  //   S-04 (Básico Prep. General C-CH-C-R) : mejora moderada 36 → 38.2
   const cmjTrajectories = {
-    1: [32.0, 32.5, 33.0, 33.5],   // S-01
-    4: [36.0, 36.8, 37.5, 38.2],   // S-04
-    5: [38.0, 37.5, 37.0, 39.0],   // S-05 (recuperación tras 2 semanas de choque)
-    6: [35.0, 36.0, 37.0, 38.0]    // S-06
+    4: [36.0, 36.8, 37.5, 38.2]    // S-04
   };
   Object.entries(cmjTrajectories).forEach(([aidStr, vals]) => {
     const aid = +aidStr;
@@ -2080,7 +1951,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v43</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v44</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10696,7 +10567,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v43 · Sesiones de Julián OG ahora varían por día (fuerza/hipertrofia/potencia/aeróbica/técnica) + mes 12 más realista (R-R-G-C) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v44 · Solo 2 atletas: Sujeto-04 (20 años) y Julián OG · Eliminados Sujetos 01, 02, 03, 05, 06 y todos sus datos asociados · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
