@@ -743,7 +743,7 @@ function getSportCategory(sport){
 }
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 8; // Bump this when data model changes — v8: solo 2 atletas (Sujeto-04 + Julián OG con macrociclo 12 meses)
+const DB_VERSION = 9; // Bump this when data model changes — v9: Sujeto-04 con datos personalizados (ratio 1.15, 16 CMJ media 37.5, 16 wellness)
 // Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
 let _cloudSyncTimer = null;
 function _scheduleCloudSync(){
@@ -1335,6 +1335,110 @@ function seed(){
       content: 'Año excelente. Progresión total +28 % en 1RM total (410 → 518 kg sumando los 3 levantamientos). CMJ +12 % (42.0 → 47.0 cm). Composición corporal estable en rango 11-13 % grasa con +1.5 kg de masa muscular. 2 competiciones, 0 lesiones, 364 entradas de wellness. Plan recomendado para el próximo año: continuar con periodización clásica e introducir bloques de bajada de volumen para preservar tendones.'
     }
   );
+
+  // =====================================================================
+  // ===== OVERRIDES Sujeto-04 — datos personalizados para presentación =====
+  // =====================================================================
+  // Objetivo: ratio A:C = 1.15 · 16 CMJ con media 37.5 cm · 16 wellness ·
+  // baseline = media · 8 semanas de carga distribuidas izquierda→derecha ·
+  // correlación Wellness-CMJ poblada (mismas fechas en ambos).
+  const S4_AID = 4;
+
+  // 1) Limpiar todos los datos previos del Sujeto-04 generados arriba
+  DB.sessions = DB.sessions.filter(s => s.athleteId !== S4_AID);
+  DB.cmj      = DB.cmj.filter(c => c.athleteId !== S4_AID);
+  DB.wellness = DB.wellness.filter(w => w.athleteId !== S4_AID);
+
+  // 2) Ajustar baseline del atleta (= media de los 16 datos)
+  const _s4 = DB.athletes.find(a => a.id === S4_AID);
+  if(_s4){
+    _s4.cmjBase = 37.5;            // baseline de CMJ = media de los 16 datos
+    _s4.wellnessBaseline = 4.18;   // baseline de Wellness = media de los 16 datos
+  }
+
+  // 3) SESIONES — 8 semanas con cargas calculadas para ratio A:C = 1.15
+  //    Cargas semanales (sem 1 = más antigua, sem 8 = más reciente):
+  //       [16, 22, 16, 9, 16, 22, 16, 22]
+  //    Carga aguda (sem 8)     = 22
+  //    Carga crónica (sem 5-8) = (16+22+16+22)/4 = 19
+  //    Ratio A:C = 22/19 = 1.158 → se redondea a 1.16, bin más próximo a 1.15
+  const s4WeeklyLoads = [16, 22, 16, 9, 16, 22, 16, 22];
+  const s4WeekTypes   = ['hipertrofia','fuerza','hipertrofia','tecnica',
+                         'hipertrofia','fuerza','hipertrofia','fuerza'];
+  const s4WeekMicros  = ['corriente','choque','corriente','restablecimiento',
+                         'corriente','choque','corriente','choque'];
+  s4WeeklyLoads.forEach((weekLoad, weekIdx) => {
+    // weekIdx 0 = semana 1 = la MÁS ANTIGUA (8 semanas atrás)
+    const weeksAgo = 8 - weekIdx;                 // 8, 7, 6, 5, 4, 3, 2, 1
+    const weekStartDayAgo = weeksAgo * 7 - 1;     // Lunes de esta semana
+    const perSession = +(weekLoad / 5).toFixed(2);
+    for(let d = 0; d < 5; d++){
+      const dayOff = weekStartDayAgo - d;
+      if(dayOff < 0) continue;
+      DB.sessions.push({
+        id: uid(), athleteId: S4_AID, date: daysAgo(dayOff),
+        type: s4WeekTypes[weekIdx],
+        microType: s4WeekMicros[weekIdx],
+        volume: weekLoad < 12 ? 60 : weekLoad < 20 ? 105 : 130,
+        intensity: weekLoad < 12 ? 55 : weekLoad < 20 ? 72 : 85,
+        extLoad: perSession,
+        rpe: weekLoad < 12 ? 4 : weekLoad < 20 ? 7 : 9,
+        notes: ''
+      });
+    }
+  });
+
+  // 4) CMJ — 16 mediciones con media EXACTA de 37.5 cm (suma = 600)
+  //    Distribuidas en los últimos 56 días (2 por semana aprox.)
+  const s4CmjValues = [
+    35.5, 36.0, 36.5, 37.0,    // sem 1-2: arranque bajo
+    37.5, 38.0, 37.5, 38.0,    // sem 3-4: progresión
+    37.5, 37.5, 38.0, 38.5,    // sem 5-6: pico
+    39.0, 37.5, 39.0, 37.0     // sem 7-8: pico final con descenso
+  ];
+  // Verificación: 35.5+36+36.5+37+37.5+38+37.5+38+37.5+37.5+38+38.5+39+37.5+39+37 = 600 → 600/16 = 37.5 ✓
+  // Días atrás (uno cada ~3.5 días) — los CMJ y wellness comparten fechas para que
+  // la correlación tenga 16 puntos cruzados.
+  const s4DaysOff = [56, 52, 49, 45, 42, 38, 35, 31, 28, 24, 21, 17, 14, 10, 7, 3];
+  s4CmjValues.forEach((v, i) => {
+    DB.cmj.push({
+      id: uid(), athleteId: S4_AID, date: daysAgo(s4DaysOff[i]),
+      value: v
+    });
+  });
+
+  // 5) WELLNESS — 16 entradas en las MISMAS fechas que los CMJ
+  //    Media objetivo ≈ 4.18 (= wellnessBaseline)
+  const s4WellEntries = [
+    // [fatigue, sleep, doms, stress, mood] → score
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 4, 5, 4, 4],   // 4.2
+    [4, 4, 4, 4, 4],   // 4.0
+    [5, 4, 4, 4, 5],   // 4.4
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 5, 4, 4, 5],   // 4.4
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 5, 4, 4, 5],   // 4.4
+    [4, 4, 5, 4, 4],   // 4.2
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 4, 4, 4, 5],   // 4.2
+    [4, 4, 4, 5, 4],   // 4.2
+    [4, 4, 4, 4, 4],   // 4.0
+    [4, 5, 4, 5, 4],   // 4.4
+    [5, 5, 4, 4, 4]    // 4.4
+  ];
+  // Suma de scores = 4.0×7 + 4.2×4 + 4.4×5 = 28 + 16.8 + 22 = 66.8
+  // Media = 66.8 / 16 = 4.175 ≈ 4.18 ✓
+  s4WellEntries.forEach(([fatigue, sleep, doms, stress, mood], i) => {
+    const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
+    DB.wellness.push({
+      id: uid(), athleteId: S4_AID, date: daysAgo(s4DaysOff[i]),
+      fatigue, sleep, doms, stress, mood,
+      motivation: doms,
+      score
+    });
+  });
 
   save();
 }
@@ -1955,7 +2059,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v45</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v46</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -2506,8 +2610,8 @@ function deleteEditSession(sessionId, aid){
 }
 
 function setupDetailCharts(aid){
-  // CMJ chart (30 days)
-  const cmjData = DB.cmj.filter(c=>c.athleteId===aid && c.date>=daysAgo(30)).sort((a,b)=>a.date.localeCompare(b.date));
+  // CMJ chart (60 days)
+  const cmjData = DB.cmj.filter(c=>c.athleteId===aid && c.date>=daysAgo(60)).sort((a,b)=>a.date.localeCompare(b.date));
   const ath = getAthleteById(aid);
   const cmjVals = cmjData.map(c=>c.value);
   const cmjMin = Math.min(...cmjVals, ath.cmjBase);
@@ -2533,15 +2637,26 @@ function setupDetailCharts(aid){
       }
     }
   });
-  // Wellness chart (30 days)
-  const wellData = DB.wellness.filter(w=>w.athleteId===aid && w.date>=daysAgo(30)).sort((a,b)=>a.date.localeCompare(b.date));
+  // Wellness chart (60 days)
+  const wellData = DB.wellness.filter(w=>w.athleteId===aid && w.date>=daysAgo(60)).sort((a,b)=>a.date.localeCompare(b.date));
+  // Baseline: si el atleta tiene wellnessBaseline definido (ej. media de los datos), usarlo;
+  // si no, usar el umbral fijo de 3.5
+  const _wScores = wellData.map(w=>w.score);
+  const _wBaseline = (ath && typeof ath.wellnessBaseline === 'number')
+    ? ath.wellnessBaseline
+    : (ath && ath.wellnessBaselineMode === 'mean' && _wScores.length
+        ? +(_wScores.reduce((a,b)=>a+b,0)/_wScores.length).toFixed(2)
+        : 3.5);
+  const _wBaselineLabel = (ath && (typeof ath.wellnessBaseline === 'number' || ath.wellnessBaselineMode === 'mean'))
+    ? `Baseline (${_wBaseline.toFixed(1)})`
+    : 'Umbral';
   mkChart('chartWell',{
     type:'line',
     data:{
       labels: wellData.map(w=>fmtShort(w.date)),
       datasets:[
-        {label:'Wellness', data:wellData.map(w=>w.score), borderColor:'#4A7A5A', backgroundColor:'rgba(74,122,90,.1)', fill:true, tension:.3, pointRadius:4, pointHoverRadius:7, pointBackgroundColor:'#4A7A5A', pointBorderColor:'#fff', pointBorderWidth:1.5},
-        {label:'Umbral', data:wellData.map(()=>3.5), borderColor:'rgba(139,115,64,.5)', borderDash:[5,5], pointRadius:0, fill:false}
+        {label:'Wellness', data:_wScores, borderColor:'#4A7A5A', backgroundColor:'rgba(74,122,90,.1)', fill:true, tension:.3, pointRadius:4, pointHoverRadius:7, pointBackgroundColor:'#4A7A5A', pointBorderColor:'#fff', pointBorderWidth:1.5},
+        {label:_wBaselineLabel, data:wellData.map(()=>_wBaseline), borderColor:'rgba(160,64,64,.7)', borderDash:[6,4], pointRadius:0, borderWidth:2, fill:false}
       ]
     },
     options:{
@@ -10571,7 +10686,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v45 · DB_VERSION=8 fuerza reseed automático + no-cache para GitHub Pages siempre actualizado · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v46 · Sujeto-04 personalizado: ratio A:C = 1.16, 16 CMJ (media 37.5), 16 wellness (media 4.18), 8 semanas de carga distribuidas, baseline = media · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
