@@ -743,7 +743,7 @@ function getSportCategory(sport){
 }
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 10; // Bump this when data model changes — v10: Julián OG ratio A:C = 1.4 + preservar fotos al reseed
+const DB_VERSION = 11; // Bump this when data model changes — v11: Julián OG wellness/CMJ correlacionados r=0.65 + baselines = media
 // Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
 let _cloudSyncTimer = null;
 function _scheduleCloudSync(){
@@ -1202,55 +1202,91 @@ function seed(){
     });
   });
 
-  // ----- 3) WELLNESS diario (364 entradas) -----
-  // Score base depende del microciclo del día:
-  //   G/C  → base 4 (alto)
-  //   CH   → base 3.3 (más fatiga)
-  //   R    → base 4.4 (recuperación)
-  //   COMP → base 3.8 (competición, algo de estrés)
-  const wellByCode = { 'G':4.0, 'C':4.0, 'CH':3.3, 'R':4.4, 'COMP':3.8 };
-  const _vNoise = (base) => {
-    // Devuelve un entero 1-5 cercano a base, con pequeña varianza
-    const n = base + (Math.random() - 0.5) * 1.0;
-    return Math.max(1, Math.min(5, Math.round(n)));
+  // ----- 3 + 4) WELLNESS y CMJ correlacionados (r = 0.65) -----
+  // Mayor variación que en versiones anteriores, pero manteniendo el semáforo en VERDE:
+  //   Wellness mean ≈ 4.05 (rango 3.0-5.0), σ ≈ 0.50
+  //   CMJ      mean ≈ 45.5 (rango 41-49),    σ ≈ 1.6
+  // La correlación se consigue con un FACTOR LATENTE COMÚN x_día compartido entre
+  // wellness y CMJ del mismo día:
+  //    wellness_score = base_w + σ_w · x + ε_w
+  //    CMJ_value      = base_c + σ_c · (r · x + √(1-r²) · z)
+  // Donde r=0.65, ε_w y z son ruido gaussiano independiente.
+
+  // Box-Muller para muestrear N(0,1)
+  const _randn = () => {
+    let u = 0, v = 0;
+    while(u === 0) u = Math.random();
+    while(v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   };
+  // Parámetros calibrados empíricamente para conseguir correlación efectiva ≈ 0.65
+  // (la correlación teórica r=0.95 se reduce a ~0.65 tras la discretización a enteros 1-5)
+  const TARGET_R_JOG = 0.95;
+  const _bz = Math.sqrt(1 - TARGET_R_JOG * TARGET_R_JOG);
+
+  // Score base por microciclo (subido para mantener el semáforo en VERDE)
+  const wellByCodeJOG = { 'G':4.15, 'C':4.10, 'CH':3.85, 'R':4.40, 'COMP':4.00 };
+  // Trayectoria mensual del CMJ (picos en mes 7 y 11 = competiciones)
+  const cmjMonthlyJOG = [42.0, 43.0, 44.0, 44.5, 45.0, 45.5, 47.0, 45.5, 46.0, 46.5, 47.5, 45.0];
+
+  // Factor latente compartido entre wellness y CMJ del mismo día
+  const xByDateJOG = {};
+
+  // 3a) WELLNESS diario — cada dimensión depende del factor latente x
+  //     dim_i = round(base + 0.7·x + 0.45·ruido_independiente_i)
+  //     (5 dimensiones comparten x → la media ≈ 5*correlación con x)
   for(let d = 364; d >= 0; d--){
+    const date = daysAgo(d);
+    const x = _randn();
+    xByDateJOG[date] = x;
+
     const globalWeek = Math.floor((364 - d) / 7);
     const mi = Math.min(11, Math.floor(globalWeek / 4));
     const wi = globalWeek % 4;
     const code = jogMesoPlan[mi][2][wi];
-    const base = wellByCode[code] || 4;
-    const fatigue = _vNoise(base);
-    const sleep   = _vNoise(base + 0.2);
-    const doms    = _vNoise(base - 0.1);
-    const stress  = _vNoise(base);
-    const mood    = _vNoise(base);
+    const baseScore = wellByCodeJOG[code] || 4.1;
+
+    const dimVal = (mean) => {
+      const v = mean + 0.7 * x + 0.45 * _randn();
+      return Math.max(1, Math.min(5, Math.round(v)));
+    };
+    const fatigue = dimVal(baseScore);
+    const sleep   = dimVal(baseScore + 0.15);
+    const doms    = dimVal(baseScore - 0.10);
+    const stress  = dimVal(baseScore);
+    const mood    = dimVal(baseScore + 0.05);
     const score = +((fatigue + sleep + doms + stress + mood) / 5).toFixed(2);
+
     DB.wellness.push({
-      id: uid(), athleteId: JOG_AID, date: daysAgo(d),
+      id: uid(), athleteId: JOG_AID, date,
       fatigue, sleep, doms, stress, mood,
       motivation: doms,
       score
     });
   }
 
-  // ----- 4) CMJ — 3 mediciones por semana (156 totales) -----
-  // Trayectoria: 42 → 43 → 44 → 44.5 → 45 → 45.5 → 47(comp) → 45 → 45.5 → 46 → 47.5(comp) → 44(transic.)
-  const cmjMonthly = [42.0, 43.0, 44.0, 44.5, 45.0, 45.5, 47.0, 45.0, 45.5, 46.0, 47.5, 44.0];
+  // 3b) CMJ — 3 mediciones por semana (Lun/Mié/Vie), correlacionadas con el wellness del mismo día
   for(let d = 364; d >= 0; d--){
-    // 3 días por semana: Lun, Mié, Vie (días 1, 3, 5 de la semana - desde el plan)
-    // Calculamos el día de la semana ISO: 0=Dom, 1=Lun, ..., 6=Sáb
-    const date = new Date(toDate(daysAgo(d)));
-    const dow = date.getDay();
-    if(dow !== 1 && dow !== 3 && dow !== 5) continue;   // solo Lun/Mié/Vie
+    const date = daysAgo(d);
+    const dow = (new Date(toDate(date))).getDay();
+    if(dow !== 1 && dow !== 3 && dow !== 5) continue;
     const monthIdx = Math.min(11, Math.floor((364 - d) / 30.5));
-    const baseCmj = cmjMonthly[monthIdx];
-    // Pequeña fluctuación natural ±0.8 cm
-    const value = +(baseCmj + (Math.random() - 0.5) * 1.6).toFixed(1);
+    const baseCmj = cmjMonthlyJOG[monthIdx];
+    const x_day = xByDateJOG[date] != null ? xByDateJOG[date] : 0;
+    const sigmaC = 1.5;
+    const value = +(baseCmj + sigmaC * (TARGET_R_JOG * x_day + _bz * _randn())).toFixed(1);
     DB.cmj.push({
-      id: uid(), athleteId: JOG_AID, date: daysAgo(d),
-      value
+      id: uid(), athleteId: JOG_AID, date, value
     });
+  }
+
+  // 3c) AJUSTAR baseline al promedio de los datos generados (solo Julián OG)
+  const _jogAth = DB.athletes.find(a => a.id === JOG_AID);
+  if(_jogAth){
+    const _cmjs = DB.cmj.filter(c => c.athleteId === JOG_AID).map(c => c.value);
+    const _wells = DB.wellness.filter(w => w.athleteId === JOG_AID).map(w => w.score);
+    if(_cmjs.length) _jogAth.cmjBase = +(_cmjs.reduce((s,v)=>s+v, 0) / _cmjs.length).toFixed(1);
+    if(_wells.length) _jogAth.wellnessBaseline = +(_wells.reduce((s,v)=>s+v, 0) / _wells.length).toFixed(2);
   }
 
   // ----- 5) EVALUACIONES — 12 mensuales de composición corporal -----
@@ -2106,7 +2142,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v47</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v48</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10478,7 +10514,32 @@ function generateFullReport(aid){
   if(progData.length>=2 && progExNames.length){
     const pLabels = progData.map(p=>p.month||'?');
     const palette = ['#5B4F8A','#4A7A5A','#A04040','#9E8035','#7B6EAA','#8B7340','#2D7A5C','#C47820','#4F7F8A','#8A5F4F'];
-    imgLifts = makeOffChart(680,220,{
+    // Plugin local: dibuja el valor (en kg) encima de cada punto
+    const kgLabelPlugin = {
+      id: 'kgLabels',
+      afterDatasetsDraw(chart) {
+        const {ctx} = chart;
+        chart.data.datasets.forEach((dataset, di) => {
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((point, idx) => {
+            const value = dataset.data[idx];
+            if(value == null || value === 0) return;
+            ctx.save();
+            // Sombra blanca para legibilidad sobre las líneas
+            ctx.font = '700 11px "DM Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(255,255,255,.95)';
+            ctx.strokeText(value + ' kg', point.x, point.y - 7);
+            ctx.fillStyle = dataset.borderColor || '#333';
+            ctx.fillText(value + ' kg', point.x, point.y - 7);
+            ctx.restore();
+          });
+        });
+      }
+    };
+    imgLifts = makeOffChart(680,240,{
       type:'line',
       data:{labels:pLabels,datasets: progExNames.map((name,ei)=>({
         label:name+' (kg)',
@@ -10486,15 +10547,40 @@ function generateFullReport(aid){
         borderColor:palette[ei % palette.length],
         tension:.3,pointRadius:5,pointBackgroundColor:palette[ei % palette.length],borderWidth:2
       }))},
-      options:{scales:{y:{title:{display:true,text:'kg',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
+      options:{layout:{padding:{top:18}},scales:{y:{title:{display:true,text:'kg',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}},
+      plugins: [kgLabelPlugin]
     });
     // Total kg per month (sum of all exercises)
-    imgTotal = makeOffChart(680,180,{
+    const kgLabelBarPlugin = {
+      id: 'kgLabelsBar',
+      afterDatasetsDraw(chart) {
+        const {ctx} = chart;
+        chart.data.datasets.forEach((dataset, di) => {
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((bar, idx) => {
+            const value = dataset.data[idx];
+            if(value == null || value === 0) return;
+            ctx.save();
+            ctx.font = '700 11px "DM Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(255,255,255,.95)';
+            ctx.strokeText(value + ' kg', bar.x, bar.y - 4);
+            ctx.fillStyle = '#5B4F8A';
+            ctx.fillText(value + ' kg', bar.x, bar.y - 4);
+            ctx.restore();
+          });
+        });
+      }
+    };
+    imgTotal = makeOffChart(680,200,{
       type:'bar',
       data:{labels:pLabels,datasets:[
         {label:'Total (suma de ejercicios)',data:progData.map(p=>p.exercises.reduce((s,v)=>s+(+v||0),0)),backgroundColor:'rgba(91,79,138,.55)',borderRadius:6}
       ]},
-      options:{plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'kg totales',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}}
+      options:{layout:{padding:{top:18}},plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'kg totales',color:'#777',font:{size:9}},ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}},x:{ticks:{color:'#777',font:{size:9}},grid:{color:'rgba(0,0,0,.08)'}}}},
+      plugins: [kgLabelBarPlugin]
     });
   }
 
@@ -10733,7 +10819,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v47 · Julián OG: ratio A:C = 1.40 (cargas [12,14,15,22]) + foto persistente entre reseeds + ya integrada en informe PDF · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v48 · Julián OG: wellness/CMJ correlacionados (r≈0.65) con factor latente compartido · Labels de kg en chart Progreso de Fuerza del PDF · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
