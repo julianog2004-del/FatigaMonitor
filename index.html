@@ -2142,7 +2142,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v48</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v49</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10731,6 +10731,11 @@ body{font-family:'Inter',sans-serif;color:#1a1a1a;background:#fff;max-width:178m
 .chart-img{width:100%;border:1px solid #eee;border-radius:3px;margin:6px 0}
 .chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .interp-box{padding:10px 14px;border-radius:3px;margin-bottom:12px;font-size:10px;line-height:1.5}
+/* Recuadro de notas y observaciones del macrociclo */
+.notes-box{border:1px solid #D6CCBA;border-radius:4px;padding:14px 16px 12px;background:#FAFAF7;min-height:140px}
+.notes-pretext{font-size:10px;line-height:1.5;color:#444;margin:0 0 10px;padding:8px 10px;background:rgba(139,115,64,.06);border-left:2px solid #8B7340;border-radius:2px;font-style:italic}
+.notes-lines{display:flex;flex-direction:column;gap:18px}
+.notes-lines .nline{height:0;border-bottom:1px solid #C8BFAC}
 .footer{margin-top:24px;padding-top:10px;border-top:1px solid #E0DDD6;font-size:8px;color:#aaa;text-align:center;font-family:'DM Mono',monospace}
 .ratio-bar{height:6px;border-radius:3px;background:linear-gradient(90deg,#C04040 0%,#C04040 40%,#3A8A4A 40%,#3A8A4A 65%,#C8A030 65%,#C8A030 75%,#C04040 75%);position:relative;margin:6px 0 3px}
 .ratio-marker{width:3px;height:12px;background:#1a1a1a;border-radius:2px;position:absolute;top:-3px;transform:translateX(-50%)}
@@ -10804,6 +10809,18 @@ ${(imgCorr||imgSesTypes)?`<div class="section">
 
 ${imgMacro?'<div class="section"><div class="section-title">Macrociclo — Distribución de Carga por Semana</div><img class="chart-img" src="'+imgMacro+'"></div>':''}
 
+${imgMacro?`<div class="section">
+  <div class="section-title">Notas y observaciones del macrociclo</div>
+  <div class="notes-box">
+    ${(plan && plan.observations) ? `<p class="notes-pretext">${plan.observations}</p>` : ''}
+    <div class="notes-lines">
+      <div class="nline"></div><div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div><div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div><div class="nline"></div>
+    </div>
+  </div>
+</div>`:''}
+
 ${evals.length?'<div class="section">'+evalTableHTML+'</div>':''}
 
 ${imgBodyComp?'<div class="section"><div class="section-title">Composición Corporal — Evolución</div><img class="chart-img" src="'+imgBodyComp+'"></div>':''}
@@ -10819,7 +10836,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v48 · Julián OG: wellness/CMJ correlacionados (r≈0.65) con factor latente compartido · Labels de kg en chart Progreso de Fuerza del PDF · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v49 · Informe PDF: nuevo recuadro "Notas y observaciones" debajo de la gráfica del macrociclo (líneas para escribir a mano + observaciones del plan si las hay) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
