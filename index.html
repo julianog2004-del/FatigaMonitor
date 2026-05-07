@@ -743,7 +743,7 @@ function getSportCategory(sport){
 }
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 11; // Bump this when data model changes — v11: Julián OG wellness/CMJ correlacionados r=0.65 + baselines = media
+const DB_VERSION = 12; // Bump this when data model changes — v12: Julián OG observations actualizadas (especialización, un pico)
 // Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
 let _cloudSyncTimer = null;
 function _scheduleCloudSync(){
@@ -1334,7 +1334,7 @@ function seed(){
     startDate: JOG_START, endDate: TODAY,
     sport: 'Entrenamiento de Fuerza',
     schedule: { lunes:'Fuerza Máx.', martes:'Hipertrofia', miercoles:'Potencia', jueves:'Fuerza Máx.', viernes:'Aeróbica', sabado:'Descanso', domingo:'Descanso' },
-    observations: 'Atleta avanzado en periodización clásica de 12 meses con dos competiciones (mes 7 y mes 11). Picos de forma planificados con descargas tras choques.',
+    observations: 'Atleta en fase de especialización, periodización clásica de 12 meses con dos competiciones (mes 7 y mes 11). Un pico de forma planificado.',
     objectives: [
       'Incrementar 1RM en los tres levantamientos básicos +25 % en 12 meses',
       'Mantener composición corporal entre 11-13 % grasa',
@@ -2142,7 +2142,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v49</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v50</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10732,9 +10732,9 @@ body{font-family:'Inter',sans-serif;color:#1a1a1a;background:#fff;max-width:178m
 .chart-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .interp-box{padding:10px 14px;border-radius:3px;margin-bottom:12px;font-size:10px;line-height:1.5}
 /* Recuadro de notas y observaciones del macrociclo */
-.notes-box{border:1px solid #D6CCBA;border-radius:4px;padding:14px 16px 12px;background:#FAFAF7;min-height:140px}
-.notes-pretext{font-size:10px;line-height:1.5;color:#444;margin:0 0 10px;padding:8px 10px;background:rgba(139,115,64,.06);border-left:2px solid #8B7340;border-radius:2px;font-style:italic}
-.notes-lines{display:flex;flex-direction:column;gap:18px}
+.notes-box{border:1px solid #D6CCBA;border-radius:4px;padding:16px 18px 14px;background:#FAFAF7;min-height:280px}
+.notes-pretext{font-size:10px;line-height:1.5;color:#444;margin:0 0 12px;padding:8px 10px;background:rgba(139,115,64,.06);border-left:2px solid #8B7340;border-radius:2px;font-style:italic}
+.notes-lines{display:flex;flex-direction:column;gap:16px}
 .notes-lines .nline{height:0;border-bottom:1px solid #C8BFAC}
 .footer{margin-top:24px;padding-top:10px;border-top:1px solid #E0DDD6;font-size:8px;color:#aaa;text-align:center;font-family:'DM Mono',monospace}
 .ratio-bar{height:6px;border-radius:3px;background:linear-gradient(90deg,#C04040 0%,#C04040 40%,#3A8A4A 40%,#3A8A4A 65%,#C8A030 65%,#C8A030 75%,#C04040 75%);position:relative;margin:6px 0 3px}
@@ -10816,7 +10816,10 @@ ${imgMacro?`<div class="section">
     <div class="notes-lines">
       <div class="nline"></div><div class="nline"></div><div class="nline"></div>
       <div class="nline"></div><div class="nline"></div><div class="nline"></div>
-      <div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div><div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div><div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div><div class="nline"></div><div class="nline"></div>
+      <div class="nline"></div>
     </div>
   </div>
 </div>`:''}
@@ -10836,7 +10839,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v49 · Informe PDF: nuevo recuadro "Notas y observaciones" debajo de la gráfica del macrociclo (líneas para escribir a mano + observaciones del plan si las hay) · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v50 · Caja de notas alargada (16 líneas, min-height 280px) + texto observations actualizado para Julián OG · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
