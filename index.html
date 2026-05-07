@@ -743,7 +743,7 @@ function getSportCategory(sport){
 }
 
 // ===== PERSISTENCE =====
-const DB_VERSION = 9; // Bump this when data model changes — v9: Sujeto-04 con datos personalizados (ratio 1.15, 16 CMJ media 37.5, 16 wellness)
+const DB_VERSION = 10; // Bump this when data model changes — v10: Julián OG ratio A:C = 1.4 + preservar fotos al reseed
 // Debounced cloud sync — agrupa escrituras en bursts para no exceder la cuota Firestore (20K/día).
 let _cloudSyncTimer = null;
 function _scheduleCloudSync(){
@@ -809,7 +809,29 @@ function save(){
 }
 function load(){
   const ver = parseInt(localStorage.getItem('fm_db_version'))||0;
-  if(ver < DB_VERSION){ seed(); return; }
+  if(ver < DB_VERSION){
+    // Antes del reseed, preservamos las fotos que el usuario ya haya subido
+    // (indexadas por nombre del atleta para sobrevivir a cambios de id)
+    const preservedPhotos = {};
+    try{
+      const oldRaw = localStorage.getItem('fm_db');
+      if(oldRaw){
+        const oldDB = JSON.parse(oldRaw);
+        (oldDB.athletes||[]).forEach(a => {
+          if(a.photoUrl) preservedPhotos[a.name] = a.photoUrl;
+        });
+      }
+    }catch(e){}
+    seed();
+    // Restaurar fotos en los atletas del nuevo seed por coincidencia de nombre
+    if(Object.keys(preservedPhotos).length){
+      DB.athletes.forEach(a => {
+        if(preservedPhotos[a.name]) a.photoUrl = preservedPhotos[a.name];
+      });
+      save();
+    }
+    return;
+  }
   const raw = localStorage.getItem('fm_db');
   if(raw){ try{ DB = JSON.parse(raw); if(!DB.nutritionReports) DB.nutritionReports=[]; if(!DB.weeklyMenus) DB.weeklyMenus=[]; }catch(e){ seed(); } }
   else seed();
@@ -1440,6 +1462,31 @@ function seed(){
     });
   });
 
+  // =====================================================================
+  // ===== OVERRIDE Ratio A:C de Julián OG = 1.4 ========================
+  // =====================================================================
+  // Cargas semanales objetivo de las últimas 4 semanas (sem 1 = más antigua):
+  //    [12, 14, 15, 22]
+  //   Aguda  (sem 4 = última 7 días) = 22
+  //   Crónica (media 4 semanas)      = (12+14+15+22)/4 = 15.75
+  //   Ratio A:C = 22 / 15.75 = 1.397 → se redondea a 1.4 ✓
+  // Las cargas se redistribuyen entre las sesiones existentes de cada semana
+  // (no se borran ni se crean nuevas — solo se ajusta extLoad).
+  const JOG_RATIO_AID = 7;
+  const jogTargetWeeklyLoads = [12, 14, 15, 22];
+  jogTargetWeeklyLoads.forEach((target, weekIdx) => {
+    const weeksAgo = 4 - weekIdx;          // 4, 3, 2, 1
+    const dateStart = daysAgo(weeksAgo * 7 - 1);
+    const dateEnd   = daysAgo((weeksAgo - 1) * 7);
+    const ws = DB.sessions.filter(s =>
+      s.athleteId === JOG_RATIO_AID &&
+      s.date >= dateStart && s.date <= dateEnd
+    );
+    if(!ws.length) return;
+    const perSession = +(target / ws.length).toFixed(2);
+    ws.forEach(s => { s.extLoad = perSession; });
+  });
+
   save();
 }
 
@@ -2059,7 +2106,7 @@ function renderSidebar(){
     <div class="sb-header">
       <div class="sb-logo">
         <div class="lo-icon"><i class="fas fa-heartbeat"></i></div>
-        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v46</div></div>
+        <div><div class="lo-text">FatigaMonitor</div><div class="lo-sub">Pro v47</div></div>
       </div>
     </div>
     <div class="nav-section">${navItems}</div>
@@ -10686,7 +10733,7 @@ ${workoutHTML?'<div class="section">'+workoutHTML+'</div>':''}
 ${sesHistHTML?'<div class="section">'+sesHistHTML+'</div>':''}
 
 <div class="footer">
-  FatigaMonitor Pro v46 · Sujeto-04 personalizado: ratio A:C = 1.16, 16 CMJ (media 37.5), 16 wellness (media 4.18), 8 semanas de carga distribuidas, baseline = media · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
+  FatigaMonitor Pro v47 · Julián OG: ratio A:C = 1.40 (cargas [12,14,15,22]) + foto persistente entre reseeds + ya integrada en informe PDF · Basado en el TFG: "Monitorización de la fatiga" — Julián Orejas González · UGR 2025-2026
 </div>
 
 </body></html>`;
